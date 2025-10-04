@@ -1,26 +1,33 @@
 module LoadRom where
 
-import qualified Data.Vector.Unboxed as IUVector
+import Memory (Memory, writeMemory)
+
+--import qualified Data.Vector.Unboxed as IUVector
 import qualified Data.Vector as IBVector
 import qualified Data.ByteString as B
 import System.IO (withBinaryFile, IOMode(ReadMode))
-import Data.Word (Word8)
-import Control.Monad (when)
+import Control.Monad (forM_)
 import Data.Bits (shiftR, (.&.))
+import Data.Word (Word16, Word8)
 
 
-loadRom :: FilePath -> Int -> IO (IUVector.Vector Word8)
-loadRom path expectedSize = withBinaryFile path ReadMode $ \fHandle -> do
+-- loadRom :: FilePath -> Int -> IO (IUVector.Vector Word8)
+-- loadRom path expectedSize = withBinaryFile path ReadMode $ \fHandle -> do
 
-    (bytes :: [Word8]) <- B.unpack <$> B.hGetContents fHandle
-    let actualSize = length bytes
+--     (bytes :: [Word8]) <- B.unpack <$> B.hGetContents fHandle
+--     let actualSize = length bytes
 
-    -- this double checks my understanding of the memory layout sizes
-    when (actualSize /= expectedSize) $
-        putStrLn $ "Warning: ROM size mismatch! Expected " ++ show expectedSize
-                ++ " bytes but got " ++ show actualSize ++ " bytes"
+--     -- this double checks my understanding of the memory layout sizes
+--     when (actualSize /= expectedSize) $
+--         putStrLn $ "Warning: ROM size mismatch! Expected " ++ show expectedSize
+--                 ++ " bytes but got " ++ show actualSize ++ " bytes"
 
-    return $ IUVector.fromList bytes
+--     return $ IUVector.fromList bytes
+loadRom :: FilePath -> Word16 -> Memory -> IO ()
+loadRom path codeOffset mem = withBinaryFile path ReadMode $ \fHandle -> do
+    bytes <- B.unpack <$> B.hGetContents fHandle
+    let bytesAndIndexes = zip ([codeOffset..] :: [Word16]) bytes
+    forM_ bytesAndIndexes $ uncurry (writeMemory mem)
 
 loadMode7Font :: FilePath -> Int -> IO (IBVector.Vector [[Bool]])
 loadMode7Font path headersize = withBinaryFile path ReadMode $ \fHandle -> do

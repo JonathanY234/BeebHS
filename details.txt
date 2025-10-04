@@ -23,29 +23,5 @@ zpg	zeropage	OPC $LL	operand is zeropage address (hi-byte is zero, address = $00
 zpg,X	zeropage, X-indexed	OPC $LL,X	operand is zeropage address; effective address is address incremented by X without carry **
 zpg,Y	zeropage, Y-indexed	OPC $LL,Y	operand is zeropage address; effective address is address incremented by Y without carry **
 
+Debugger
 
-
-LDA
-    load accumulator
-LDX
-    load X
-LDY
-    load Y
-STA
-    store accumulator
-STX
-    store X
-STY
-    store Y
-TAX
-    transfer accumulator to X
-TAY
-    transfer accumulator to Y
-TSX
-    transfer stack pointer to X
-TXA
-    transfer X to accumulator
-TXS
-    transfer X to stack pointer
-TYA
-    transfer Y to accumulator 

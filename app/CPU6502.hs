@@ -1,29 +1,39 @@
 module CPU6502 where
 
+import Memory (Memory, readMemory, writeMemory, initMemory)
+import LoadRom (loadRom)
+import Debug (showMemoryPage, debugShowMemory16, getMnemonic)
+
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
 import Data.Bits ( Bits((.|.), testBit, complement, (.&.), shiftL, shiftR, xor))
 import Data.IORef (IORef, readIORef, modifyIORef', newIORef, writeIORef)
 import Control.Monad (unless, when)
-import qualified Data.Vector.Unboxed.Mutable as MUVector
 import qualified Data.Vector as IBVector
 
 cpuMain :: IO ()
 cpuMain = do
     mem <- initMemory
-    putStrLn "memtest___"
-    print =<< readMemory mem 300
-    writeMemory mem 300 20
-    print =<< readMemory mem 300
-
-    putStrLn "regTest___"
     regs <- initRegisters 0 0 0 0 0 0x20
-    sr <- readIORef (statusReg regs)
-    print $ showStatusReg sr
+
+    putStrLn "Initial Regs"
     printRegs regs
 
-    putStrLn "Instrs Test___"
-    runInstructions mem regs 10
+    --load the code
+    let codeOffset = 0x0600 :: Word16
+    loadRom "roms/o6502-2025-10-03-115453.bin" codeOffset mem
+    writeIORef (pc regs) codeOffset
+
+    putStrLn "Code Start Execute here___"
+    runInstructions mem regs 100
+
+    putStrLn "End results___"
+    putStrLn "Registers"
+    printRegs regs
+    putStrLn "Memory address 0x2000"
+    print =<< readMemory mem 0x0200
+    showMemoryPage mem 0x00
+
 
 runInstructions :: Memory -> CPURegs -> Int -> IO ()
 runInstructions mem regs count = loop 0
@@ -34,20 +44,32 @@ runInstructions mem regs count = loop 0
                 pcVal <- readIORef (pc regs)
                 currentInstructionOpcode <- readMemory mem pcVal
                 let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
+
+                putStrLn $ "Opcode: " ++ getMnemonic currentInstructionOpcode
                 instr mem regs
+                printRegs regs
+                -- showMemoryPage mem 255
+                loop (n+1)
+
+
+runInstructionsDebug :: Memory -> CPURegs -> Int -> IO ()
+runInstructionsDebug mem regs count = loop 0
+    where
+        loop n
+            | n >= count = return ()
+            | otherwise = do
+                pcVal <- readIORef (pc regs)
+                currentInstructionOpcode <- readMemory mem pcVal
+                let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
+
+                putStrLn $ "####### Opcode " ++ show currentInstructionOpcode ++ " #######"
+                instr mem regs
+                printRegs regs
+                showMemoryPage mem 255
                 loop (n+1)
 
 -- __________Memory__________
-data Memory = Memory {m :: MUVector.IOVector Word8}
-
-readMemory :: Memory -> Word16 -> IO Word8
-readMemory memory address = MUVector.read (m memory) (fromIntegral address)
-
-writeMemory :: Memory -> Word16 -> Word8 -> IO ()
-writeMemory memory address = MUVector.write (m memory) (fromIntegral address) --value removed at the insistence of hlint
-
-initMemory :: IO Memory
-initMemory = Memory <$> MUVector.replicate (64*1024) 0
+-- Memory woz ere
 
 -- __________Registers__________
 data CPURegs = CPURegs {pc :: IORef Word16, accumulator :: IORef Word8, x :: IORef Word8, y :: IORef Word8, stackP :: IORef Word8, statusReg :: IORef Word8}
@@ -109,7 +131,7 @@ opcodeTable :: IBVector.Vector (Memory -> CPURegs -> IO ())
 opcodeTable = IBVector.generate 256 assign
     where
         assign :: Int -> (Memory -> CPURegs -> IO ())
-        assign 0x00 = instrTest2
+        assign 0x00 = execute0
         assign 0x01 = indirectX ora
         assign 0x05 = zeropage ora
         assign 0x0D = absolute ora
@@ -117,6 +139,7 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x10 = relative bpl
         assign 0x11 = indirectY ora
         assign 0x15 = zeropageX ora
+        assign 0x18 = implied clc
         assign 0x19 = absoluteX ora
         assign 0x1D = absoluteX ora
         assign 0x21 = indirectX and_
@@ -137,6 +160,7 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x41 = indirectX eor
         assign 0x45 = zeropage eor
         assign 0x49 = immediate eor
+        assign 0x4C = absolute jmp
         assign 0x4D = absolute eor
         assign 0x50 = relative bvc
         assign 0x51 = indirectY eor
@@ -149,6 +173,7 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x66 = zeropage rorM
         assign 0x69 = immediate adc
         assign 0x6A = implied rorA
+        assign 0x6C = indirect jmp
         assign 0x6D = absolute adc
         assign 0x6E = absolute rorM
         assign 0x70 = relative bvs
@@ -247,8 +272,8 @@ instrUnimplemented _ _ = putStrLn "unimplementedFunction"
 
 instrTest1 :: Memory -> CPURegs -> IO ()
 instrTest1 _ _ = putStrLn "Test1"
-instrTest2 :: Memory -> CPURegs -> IO ()
-instrTest2 _ _ = putStrLn "Test2"
+execute0 :: Memory -> CPURegs -> IO ()
+execute0 _ _ = putStrLn "Execute0"
 
 -- __________Addressing Modes__________
 -- immediate        value is the value right there in the instruction
@@ -379,6 +404,19 @@ relative instr mem regs = do
     writeIORef (pc regs) (pcVal + 2) -- incase we dont branch
 
     instr branchTarget undefined regs False
+
+-- (indirect)       ''
+indirect :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
+indirect instr mem regs = do
+    pcVal <- readIORef (pc regs)
+    operand <- readMemory mem (pcVal + 1)
+    byte1 <- readMemory mem (fromIntegral operand)
+    byte2 <- readMemory mem (fromIntegral ((operand + 1) :: Word8))
+
+    let address = combineTwoBytes byte1 byte2
+
+    writeIORef (pc regs) (pcVal + 2)
+    instr address mem regs False
 
 -- __________Instructions__________
 
@@ -865,3 +903,8 @@ nop :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 nop _ _ _ _ = return ()
 
 -- TODO Stack, Jumps & Subroutines, interupts
+
+--Jump to Location
+jmp :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+jmp address _ regs _ = do
+    writeIORef (pc regs) address
