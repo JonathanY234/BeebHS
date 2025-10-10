@@ -4,7 +4,9 @@ import Memory (Memory, readMemory)
 import Data.Word (Word8, Word16)
 import qualified Data.Map as M
 import Control.Monad (forM_)
-import Numeric (showHex)
+import Numeric (showHex, readHex)
+--import Text.Read (readMaybe)
+import Data.Char (toUpper)
 
 showMemoryPage :: Memory -> Word8 -> IO ()
 showMemoryPage memory pageNum = do
@@ -94,3 +96,75 @@ opcodeNames = M.fromList
     (0xF5, "Zeropagex SBC"),    (0xF6, "Zeropagex INC"),    (0xF8, "Implied SED"),
     (0xF9, "Absolutey SBC"),    (0xFD, "Absolutex SBC"),    (0xFE, "Absolutex INC")
     ]
+
+-- C, Continue
+-- S, Step
+-- B, Breakpoint
+-- M, show memory page
+
+data DebugState = DebugState { breakpoints :: [Word16], continueMode :: Bool }
+
+-- processing input is pain
+handleInput :: Memory -> DebugState -> IO DebugState
+handleInput mem debugState@(DebugState bps continueMode) = do
+    (command, value) <- getValidInput
+    case command of
+        "C" -> return (DebugState bps True)
+        "S" -> return (DebugState bps False)
+        "B" -> handleInput mem (DebugState (value:bps) continueMode)
+        "M" -> do
+            let pageIndex = fromIntegral (value `div` 256)
+            showMemoryPage mem pageIndex
+            handleInput mem  debugState
+        _ -> do
+            putStrLn "Invalid command, this should not be reachable should have been handled by getValidInput"
+            return debugState
+
+
+getValidInput :: IO (String, Word16)
+getValidInput = do
+    putStrLn "Enter command: "
+    input <- words <$> getLine
+
+    (command, value :: Word16, numErr) <- case input of
+        [] -> return ("", 0, True)
+        [cmd] -> return (map toUpper cmd, 0, True)
+        (cmd:val:_) ->
+            -- case readMaybe val :: Maybe Int of
+            --     Just n | n >= 0 && n <= 65535 -> return (map toUpper cmd, fromIntegral n, False)
+            --     _ -> return (map toUpper cmd, 0, True)
+
+            case parseHex val of
+                Just n  -> return (map toUpper cmd, n, False)
+                Nothing -> return (map toUpper cmd, 0, True)
+            where
+                parseHex :: String -> Maybe Word16
+                parseHex s = case readHex s of
+                    [(n, "")] | n >= 0 && n <= 0xFFFF -> Just (fromIntegral n)
+                    _ -> Nothing
+
+    let commandShort = case command of
+            "CONTINUE"   -> "C"
+            "STEP"       -> "S"
+            "BREAKPOINT" -> "B"
+            "MEMORY"     -> "M"
+            _            -> command
+
+    case commandShort of
+        "C" -> return (commandShort, 0)
+        "S" -> return (commandShort, 0)
+        "B" ->
+            if numErr
+                then do
+                    putStrLn "Not a valid number"
+                    getValidInput
+                else return (commandShort, value)
+        "M" -> do
+            if numErr
+                then do
+                    putStrLn "Not a valid number"
+                    getValidInput
+                else return (commandShort, value)
+        _ -> do
+            putStrLn "Invalid command, try again."
+            getValidInput

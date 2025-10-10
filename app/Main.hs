@@ -13,10 +13,8 @@ main = do
     
     cpuMain
 
-
-
-    --theRom <- loadRom "roms/mos320.rom" 16384
-    --print theRom
+    -- theRom <- loadRom "roms/mos320.rom" 16384
+    -- print theRom
 
     -- m7Font <- loadMode7Font "roms/saa5050.fnt" 18
     -- let charsToDraw :: [Word8]

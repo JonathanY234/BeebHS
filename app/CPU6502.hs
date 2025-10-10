@@ -2,13 +2,14 @@ module CPU6502 where
 
 import Memory (Memory, readMemory, writeMemory, initMemory)
 import LoadRom (loadRom)
-import Debug (showMemoryPage, debugShowMemory16, getMnemonic)
+import Debug (getMnemonic, DebugState(..), handleInput)
 
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
 import Data.Bits ( Bits((.|.), testBit, complement, (.&.), shiftL, shiftR, xor))
 import Data.IORef (IORef, readIORef, modifyIORef', newIORef, writeIORef)
 import Control.Monad (unless, when)
+import Numeric (showHex)
 import qualified Data.Vector as IBVector
 
 cpuMain :: IO ()
@@ -16,44 +17,20 @@ cpuMain = do
     mem <- initMemory
     regs <- initRegisters 0 0 0 0 0 0x20
 
-    putStrLn "Initial Regs"
-    printRegs regs
-
     --load the code
-    let codeOffset = 0x0600 :: Word16
-    loadRom "roms/o6502-2025-10-03-115453.bin" codeOffset mem
+    let codeOffset = 0x8000 :: Word16
+    loadRom "roms/o6502-2025-10-08-162857.bin" codeOffset mem
     writeIORef (pc regs) codeOffset
 
-    putStrLn "Code Start Execute here___"
-    runInstructions mem regs 100
+    runInstructionsDebug mem regs 100
 
-    putStrLn "End results___"
-    putStrLn "Registers"
-    printRegs regs
-    putStrLn "Memory address 0x2000"
-    print =<< readMemory mem 0x0200
-    showMemoryPage mem 0x00
+    -- putStrLn "Memory address 0x2000"
+    -- print =<< readMemory mem 0x0200
+    -- showMemoryPage mem 0x00
 
 
 runInstructions :: Memory -> CPURegs -> Int -> IO ()
 runInstructions mem regs count = loop 0
-    where
-        loop n --hopefully looping in a way that avoids stack overflow
-            | n >= count = return ()
-            | otherwise = do
-                pcVal <- readIORef (pc regs)
-                currentInstructionOpcode <- readMemory mem pcVal
-                let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
-
-                putStrLn $ "Opcode: " ++ getMnemonic currentInstructionOpcode
-                instr mem regs
-                printRegs regs
-                -- showMemoryPage mem 255
-                loop (n+1)
-
-
-runInstructionsDebug :: Memory -> CPURegs -> Int -> IO ()
-runInstructionsDebug mem regs count = loop 0
     where
         loop n
             | n >= count = return ()
@@ -62,11 +39,35 @@ runInstructionsDebug mem regs count = loop 0
                 currentInstructionOpcode <- readMemory mem pcVal
                 let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
 
-                putStrLn $ "####### Opcode " ++ show currentInstructionOpcode ++ " #######"
                 instr mem regs
-                printRegs regs
-                showMemoryPage mem 255
                 loop (n+1)
+
+-- breakpoints list, are we step or continue
+runInstructionsDebug :: Memory -> CPURegs -> Int -> IO ()
+runInstructionsDebug mem regs count = loop 0 (DebugState [] False)
+    where
+        loop n debugState@(DebugState bps continueMode)
+            | n >= count = return ()
+            | otherwise = do
+                pcVal <- readIORef (pc regs)
+
+                currentInstructionOpcode <- readMemory mem pcVal
+                let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
+                operand1 <- readMemory mem (pcVal+1)
+                operand2 <- readMemory mem (pcVal+2)
+
+                putStrLn $ "Next Opcode: " ++ getMnemonic currentInstructionOpcode ++ " " ++ showHex operand1 " " ++ showHex operand2 ""
+                printRegs regs
+
+                let stop = not continueMode || (pcVal `elem` bps)
+
+                newDebugState <- if stop
+                    then handleInput mem debugState
+                    else return debugState
+
+                instr mem regs
+                
+                loop (n+1) newDebugState
 
 -- __________Memory__________
 -- Memory woz ere
@@ -82,6 +83,7 @@ initRegisters ipc ia ix iy isp isr = do
     yRef  <- newIORef iy
     spRef <- newIORef isp
     srRef <- newIORef isr
+    writeIORef spRef 0xFF
     return (CPURegs pcRef aRef xRef yRef spRef srRef)
 
 printRegs :: CPURegs -> IO ()
@@ -92,7 +94,7 @@ printRegs regs = do
     y'  <- readIORef (y regs)
     sp' <- readIORef (stackP regs)
     sr' <- readIORef (statusReg regs)
-    putStrLn $ "PC=" ++ show pc' ++ " A=" ++ show a' ++ " X=" ++ show x' ++ " Y=" ++ show y' ++ " SP=" ++ show sp' ++ " SR=" ++ showStatusReg sr'
+    putStrLn $ "PC=0x" ++ showHex pc' "" ++ " A=" ++ show a' ++ " X=" ++ show x' ++ " Y=" ++ show y' ++ " SP=" ++ show sp' ++ " SR=" ++ showStatusReg sr'
 
 showStatusReg :: Word8 -> String
 showStatusReg w = [if testBit w i then '1' else '0' | i <- [7,6..0]]
@@ -117,13 +119,13 @@ srWriteBit mask statusReg val = modifyIORef' statusReg update
     where
         update sr = if val then sr .|. mask else sr .&. complement mask
 
-srWriteOverflow         :: IORef Word8 -> Bool -> IO (); srWriteOverflow         = srWriteBit 0x40
 srWriteCarry            :: IORef Word8 -> Bool -> IO (); srWriteCarry            = srWriteBit 0x01
 srWriteZero             :: IORef Word8 -> Bool -> IO (); srWriteZero             = srWriteBit 0x02
 srWriteInterruptDisable :: IORef Word8 -> Bool -> IO (); srWriteInterruptDisable = srWriteBit 0x04
 srWriteDecimalMode      :: IORef Word8 -> Bool -> IO (); srWriteDecimalMode      = srWriteBit 0x08
 srWriteBreak            :: IORef Word8 -> Bool -> IO (); srWriteBreak            = srWriteBit 0x10
---srWriteUnused         :: IORef Word8 -> Bool -> IO (); srWriteUnused           = srWriteBit 0x20
+srWriteUnused           :: IORef Word8 -> Bool -> IO (); srWriteUnused           = srWriteBit 0x20
+srWriteOverflow         :: IORef Word8 -> Bool -> IO (); srWriteOverflow         = srWriteBit 0x40
 srWriteNegative         :: IORef Word8 -> Bool -> IO (); srWriteNegative         = srWriteBit 0x80
 
 -- __________Create Opcode Table__________
@@ -131,9 +133,10 @@ opcodeTable :: IBVector.Vector (Memory -> CPURegs -> IO ())
 opcodeTable = IBVector.generate 256 assign
     where
         assign :: Int -> (Memory -> CPURegs -> IO ())
-        assign 0x00 = execute0
+        assign 0x00 = implied brk
         assign 0x01 = indirectX ora
         assign 0x05 = zeropage ora
+        assign 0x08 = implied php
         assign 0x0D = absolute ora
         assign 0x09 = immediate ora
         assign 0x10 = relative bpl
@@ -142,9 +145,11 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x18 = implied clc
         assign 0x19 = absoluteX ora
         assign 0x1D = absoluteX ora
+        assign 0x20 = absolute jsr
         assign 0x21 = indirectX and_
         assign 0x25 = zeropage and_
         assign 0x26 = zeropage rolM
+        assign 0x28 = implied plp
         assign 0x29 = immediate and_
         assign 0x2A = implied rolA
         assign 0x2D = absolute and_
@@ -155,10 +160,12 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x36 = zeropageX rolM
         assign 0x38 = implied sec
         assign 0x39 = absoluteY and_
+        assign 0x40 = implied rti
         assign 0x3D = absoluteX and_
         assign 0xE3 = absoluteX rolM
         assign 0x41 = indirectX eor
         assign 0x45 = zeropage eor
+        assign 0x48 = implied pha
         assign 0x49 = immediate eor
         assign 0x4C = absolute jmp
         assign 0x4D = absolute eor
@@ -168,9 +175,11 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x58 = implied cli
         assign 0x59 = absoluteX eor
         assign 0x5D = absoluteX eor
+        assign 0x60 = implied rts
         assign 0x61 = indirectX adc
         assign 0x65 = zeropage adc
         assign 0x66 = zeropage rorM
+        assign 0x68 = implied pla
         assign 0x69 = immediate adc
         assign 0x6A = implied rorA
         assign 0x6C = indirect jmp
@@ -902,9 +911,141 @@ bvs branchTarget _ regs _ = do
 nop :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 nop _ _ _ _ = return ()
 
--- TODO Stack, Jumps & Subroutines, interupts
+-- %%% Stack Instructions %%%
+
+stackBase :: Word16
+stackBase = 0x0100
+
+pushStack :: Memory -> CPURegs -> Word8 -> IO ()
+pushStack mem regs value = do
+    stackPointer <- readIORef (stackP regs)
+
+    let stackTop = stackBase + fromIntegral stackPointer
+    writeMemory mem stackTop value -- here the decrement is done after writing to the stack
+
+    writeIORef (stackP regs) (stackPointer - 1)
+
+pullStack :: Memory -> CPURegs -> IO Word8
+pullStack mem regs = do
+    stackPointer <- readIORef (stackP regs)
+
+    let stackTop = stackBase + fromIntegral stackPointer
+    
+    writeIORef (stackP regs) (stackPointer + 1)
+
+    readMemory mem (stackTop + 1) -- here the increment is done 'before' reading the stack
+
+
+-- Push Accumulator
+pha :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+pha _ mem regs _ = do
+    acc <- readIORef (accumulator regs)
+
+    pushStack mem regs acc
+
+-- Push Processor Status
+php :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+php _ mem regs _ = do
+
+    sr <- readIORef (statusReg regs)
+
+    let correctedSrVal = sr .|. 0x30 -- Unused is always 1 and break is set high in this instruction
+
+    pushStack mem regs correctedSrVal
+
+-- Pull Accumulator
+pla :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+pla _ mem regs _ = do
+
+    stackVal <- pullStack mem regs
+
+    writeIORef (accumulator regs) stackVal
+
+    srWriteNegative (statusReg regs) (testBit stackVal 7)
+    srWriteZero (statusReg regs) (stackVal == 0)
+
+-- Pull Processor Status
+plp :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+plp _ mem regs _ = do
+
+    srValFromStack <- pullStack mem regs
+
+    -- Ensure bit 5 (Unused) = 1, bit 4 (Break) = 0
+    let correctedSrVal = (srValFromStack .|. 0x20) .&. 0xEF
+
+    writeIORef (statusReg regs) correctedSrVal
+
+-- %%% Jumps & Subroutines %%%
 
 --Jump to Location
 jmp :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 jmp address _ regs _ = do
     writeIORef (pc regs) address
+
+-- Jump to Subroutine
+jsr :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+jsr address mem regs _ = do
+    pCounter <- readIORef (pc regs)
+    let instStartPCounter = pCounter - 3 -- absolute addressing function previously incremented PC which is unhelpful here
+
+        returnAddress = instStartPCounter + 2 -- "the return address on the stack points 1 byte before the start of the next instruction"
+        highByte = fromIntegral (returnAddress `shiftR` 8) :: Word8
+        lowByte  = fromIntegral returnAddress              :: Word8
+    
+    pushStack mem regs highByte
+    pushStack mem regs lowByte
+
+    writeIORef (pc regs) address
+
+-- Return from Subroutine
+rts :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+rts _ mem regs _ = do
+    lowByte <- pullStack mem regs
+    highByte <- pullStack mem regs
+
+    let returnAddress = fromIntegral (highByte `shiftL` 8) + fromIntegral lowByte + 1
+
+    writeIORef (pc regs) returnAddress
+
+-- %%% Interupts %%%
+
+irqVector :: Word16
+irqVector = 0xFFFE
+
+-- break: Software IRQ
+brk :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+brk _ mem regs _ = do
+    pCounter <- readIORef (pc regs)
+    let instStartPCounter = pCounter - 1 -- like JSR but for implied
+
+        returnAddress = instStartPCounter + 2 -- two bytes despite being implied (1 byte) leaves room for "interupt reason"
+
+        highByte = fromIntegral (returnAddress `shiftR` 8)  :: Word8
+        lowByte  = fromIntegral returnAddress               :: Word8
+    
+    sr <- readIORef (statusReg regs)
+    let correctedSrVal = sr .|. 0x30 -- ensure break and unused are set
+
+    pushStack mem regs highByte
+    pushStack mem regs lowByte
+    pushStack mem regs correctedSrVal
+
+    srWriteInterruptDisable (statusReg regs) True
+
+    lowByte2 <- readMemory mem irqVector
+    highByte2 <- readMemory mem (irqVector + 1)
+
+    let jumpAddress = fromIntegral (highByte2 `shiftL` 8) + fromIntegral lowByte2 + 1
+
+    writeIORef (pc regs) jumpAddress
+
+-- Return From Interupt
+rti :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+rti _ mem regs _ = do
+    sr <- pullStack mem regs
+    lowByte <- pullStack mem regs
+    highByte <- pullStack mem regs
+    let returnAddress = fromIntegral (highByte `shiftL` 8) + fromIntegral lowByte + 1
+
+    writeIORef (statusReg regs) sr
+    writeIORef (pc regs) returnAddress
