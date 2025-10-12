@@ -58,7 +58,7 @@ executable bbculator
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules:    CPU6502 LoadRom GraphicsSDLStuff Memory Debug
+    other-modules:    CPU6502 LoadRom GraphicsSDLStuff Memory Debug HarteCpuTests
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -69,7 +69,8 @@ executable bbculator
                       bytestring,
                       sdl2,
                       text,
-                      containers
+                      containers,
+                      aeson
 
     -- Directories containing source files.
     hs-source-dirs:   app

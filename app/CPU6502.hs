@@ -15,7 +15,7 @@ import qualified Data.Vector as IBVector
 cpuMain :: IO ()
 cpuMain = do
     mem <- initMemory
-    regs <- initRegisters 0 0 0 0 0 0x20
+    regs <- initRegisters 0 0 0 0 0xFF 0x20
 
     --load the code
     let codeOffset = 0x8000 :: Word16
@@ -83,7 +83,6 @@ initRegisters ipc ia ix iy isp isr = do
     yRef  <- newIORef iy
     spRef <- newIORef isp
     srRef <- newIORef isr
-    writeIORef spRef 0xFF
     return (CPURegs pcRef aRef xRef yRef spRef srRef)
 
 printRegs :: CPURegs -> IO ()
@@ -137,8 +136,8 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x01 = indirectX ora
         assign 0x05 = zeropage ora
         assign 0x08 = implied php
-        assign 0x0D = absolute ora
         assign 0x09 = immediate ora
+        assign 0x0D = absolute ora
         assign 0x10 = relative bpl
         assign 0x11 = indirectY ora
         assign 0x15 = zeropageX ora
@@ -274,8 +273,6 @@ opcodeTable = IBVector.generate 256 assign
         assign 0xFE = absoluteX inc
         assign _    = instrUnimplemented
 
-        -- next todo opcode table is ...
-
 instrUnimplemented :: Memory -> CPURegs -> IO ()
 instrUnimplemented _ _ = putStrLn "unimplementedFunction"
 
@@ -329,7 +326,7 @@ zeropageY instr mem regs = do
 
 combineTwoBytes :: Word8 -> Word8 -> Word16
 -- 6502 is little endian for some reason
-combineTwoBytes high low = (fromIntegral high `shiftL` 8) .|. fromIntegral low
+combineTwoBytes low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 
 -- absolute         value is at address pointed to by the next 2 bytes (the whole memory)
 absolute :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
@@ -373,10 +370,14 @@ indirectX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs
 indirectX instr mem regs = do
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
-    byte1 <- readMemory mem (fromIntegral operand)
-    byte2 <- readMemory mem (fromIntegral ((operand + 1) :: Word8))
+
     x' <- readIORef (x regs)
-    let address = combineTwoBytes byte1 byte2 + fromIntegral x'
+    let pointer = operand + x' -- will wrap around automatically
+
+    byte1 <- readMemory mem (fromIntegral pointer)
+    byte2 <- readMemory mem (fromIntegral ((pointer + 1) :: Word8))
+
+    let address = combineTwoBytes byte1 byte2
 
     writeIORef (pc regs) (pcVal + 2)
     instr address mem regs False
@@ -386,20 +387,40 @@ indirectY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs
 indirectY instr mem regs = do
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
-    byte1 <- readMemory mem (fromIntegral operand)
-    byte2 <- readMemory mem (fromIntegral ((operand + 1) :: Word8))
+
     y' <- readIORef (y regs)
-    let address = combineTwoBytes byte1 byte2 + fromIntegral y'
+    let pointer = operand + y' -- will wrap around automatically
+
+    byte1 <- readMemory mem (fromIntegral pointer)
+    byte2 <- readMemory mem (fromIntegral ((pointer + 1) :: Word8))
+
+    let address = combineTwoBytes byte1 byte2
 
     writeIORef (pc regs) (pcVal + 2)
     instr address mem regs False
 
--- implied      No operands because memory is not used
+-- (indirect)       only used by JMP
+indirect :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
+indirect instr mem regs = do
+    pcVal <- readIORef (pc regs)
+
+    operand1 <- readMemory mem (pcVal + 1)
+    operand2 <- readMemory mem (pcVal + 2)
+    let indirectAddress = combineTwoBytes operand1 operand2
+
+    byte1 <- readMemory mem indirectAddress
+    byte2 <- readMemory mem (indirectAddress + 1)
+    let address = combineTwoBytes byte1 byte2
+
+    writeIORef (pc regs) (pcVal + 3)
+    instr address mem regs False
+
+-- implied      No operands because memory is not used (unless BRK :<
 implied :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-implied instr _ regs = do
+implied instr mem regs = do
     pcVal <- readIORef (pc regs)
     writeIORef (pc regs) (pcVal + 1)
-    instr 0 undefined regs False
+    instr 0 mem regs False
 
 -- relative     Used by branch instructions
 relative :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
@@ -410,22 +431,9 @@ relative instr mem regs = do
         branchTargetInt = fromIntegral pcVal + 2 + offset
         (branchTarget :: Word16) = fromIntegral branchTargetInt
 
-    writeIORef (pc regs) (pcVal + 2) -- incase we dont branch
+    writeIORef (pc regs) (pcVal + 2) -- in case we dont branch
 
     instr branchTarget undefined regs False
-
--- (indirect)       ''
-indirect :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-indirect instr mem regs = do
-    pcVal <- readIORef (pc regs)
-    operand <- readMemory mem (pcVal + 1)
-    byte1 <- readMemory mem (fromIntegral operand)
-    byte2 <- readMemory mem (fromIntegral ((operand + 1) :: Word8))
-
-    let address = combineTwoBytes byte1 byte2
-
-    writeIORef (pc regs) (pcVal + 2)
-    instr address mem regs False
 
 -- __________Instructions__________
 

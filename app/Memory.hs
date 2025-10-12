@@ -2,7 +2,6 @@ module Memory where
 
 import Data.Word (Word16, Word8)
 import qualified Data.Vector.Unboxed.Mutable as MUVector
--- import Numeric (showHex)
 
 data Memory = Memory {m :: MUVector.IOVector Word8}
 

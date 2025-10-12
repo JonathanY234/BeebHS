@@ -3,6 +3,7 @@ module Main where
 import CPU6502 (cpuMain)
 import LoadRom (loadMode7Font)
 import GraphicsSDLStuff (initVideo, endVideo, eventLoop, renderMode7Frame)
+import HarteCpuTests (runTests)
 
 import Control.Concurrent (threadDelay)
 import Data.Word (Word8)
@@ -10,8 +11,8 @@ import Control.Monad (unless)
 
 main :: IO ()
 main = do
-    
-    cpuMain
+    runTests
+    --cpuMain
 
     -- theRom <- loadRom "roms/mos320.rom" 16384
     -- print theRom

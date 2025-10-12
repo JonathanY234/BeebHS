@@ -5,7 +5,6 @@ import Data.Word (Word8, Word16)
 import qualified Data.Map as M
 import Control.Monad (forM_)
 import Numeric (showHex, readHex)
---import Text.Read (readMaybe)
 import Data.Char (toUpper)
 
 showMemoryPage :: Memory -> Word8 -> IO ()
