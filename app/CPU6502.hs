@@ -437,7 +437,7 @@ relative instr mem regs = do
 
 -- __________Instructions__________
 
--- %%% Arithmetic operations %%% -- need todo decimal mode
+-- %%% Arithmetic operations %%%
 
 -- Add Memory to Accumulator with Carry
 adc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
@@ -448,15 +448,107 @@ adc address mem regs isImmediate = do
 
     acc <- readIORef (accumulator regs)
     carry <- srReadCarry (statusReg regs)
+    decimalFlag <- srReadDecimalMode (statusReg regs)
+
+    -- Failing Test: 6d 7b 32
+    -- putStrLn "___________________________________________--"
+    -- putStrLn $ "Inputs (normal decimal conversion). InputVal=" ++ show inputVal ++ " Acc=" ++ show acc ++ " carry=" ++ show carry
+    -- putStrLn $ "Inputs (converted as two nibbles). InputVal=" ++ debugNibbleVal inputVal ++ " Acc=" ++ debugNibbleVal acc
 
     let result16 = (fromIntegral acc :: Word16) + (fromIntegral inputVal :: Word16) + (fromIntegral (fromEnum carry) :: Word16)
         result = fromIntegral result16 :: Word8
-    writeIORef (accumulator regs) result
 
+        bcdCorrectedResult16 = if decimalFlag
+            then
+                -- low nibble correction
+                let temp16 = if ((fromIntegral acc :: Word16) 
+                                  `xor` fromIntegral inputVal
+                                  `xor` result16) .&. 0x10 == 0x10
+                                then result16 + 0x06
+                                else result16
+                        
+                -- high nibble correction
+                in if temp16 .&. 0xF0 > 0x90
+                -- in if temp16 > 0x99
+                        then temp16 + 0x60
+                        else temp16
+            else 0 -- we wont be using it
+
+        bcdCorrectedResult = fromIntegral bcdCorrectedResult16 :: Word8
+
+
+    -- putStrLn $ "result16: " ++ show result16 ++ " BCD Result16: " ++ show bcdCorrectedResult
+
+    if decimalFlag
+        then writeIORef (accumulator regs) bcdCorrectedResult
+        else writeIORef (accumulator regs) result
+
+    -- flag values set based on the pre-BCD correction values
     srWriteCarry (statusReg regs) (result16 >= 256)
     srWriteZero (statusReg regs) (result == 0)
     srWriteNegative (statusReg regs) (testBit result 7)
     srWriteOverflow (statusReg regs) (((acc `xor` result) .&. (inputVal `xor` result) .&. 0x80) /= 0)
+
+-- adc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+-- adc address mem regs isImmediate = do
+--     inputVal <- if isImmediate
+--         then return (fromIntegral address :: Word8)
+--         else readMemory mem address
+
+--     acc <- readIORef (accumulator regs)
+--     carry <- srReadCarry (statusReg regs)
+
+--     -- Failed Test: 6d bc 5b
+--     -- putStrLn "___________________________________________--"
+--     -- putStrLn $ "Inputs (normal decimal conversion). InputVal=" ++ show inputVal ++ " Acc=" ++ show acc ++ " carry=" ++ show carry
+--     putStrLn $ "Inputs (converted as two nibbles). InputVal=" ++ debugNibbleVal inputVal ++ " Acc=" ++ debugNibbleVal acc
+
+--     decimal <- srReadDecimalMode (statusReg regs)
+
+--     (newCarry, negativeVal, overflowVal, result) <- if decimal
+--         then do
+--             -- binary coded decimal BCD
+--             let accLowNibble = acc .&. 0x0F
+--                 inputLowNibble = inputVal  .&. 0x0F
+--                 accHighNibble = acc `shiftR` 4
+--                 inputHighNibble = inputVal `shiftR` 4
+
+--                 (lowCarry, _, _, lowResult) = bcdAddNibble carry accLowNibble inputLowNibble
+--                 (highCarry, negativeVal, overflowVal, highResult) = bcdAddNibble lowCarry accHighNibble inputHighNibble
+--             return (highCarry, negativeVal, overflowVal, (highResult `shiftL` 4) + lowResult)
+
+--         else do
+--             -- Normal binary addition
+--             let result16 = (fromIntegral acc :: Word16) + (fromIntegral inputVal :: Word16) + (fromIntegral (fromEnum carry) :: Word16)
+--                 negativeVal = testBit result16 7
+--                 result = fromIntegral result16 :: Word8
+--                 overflowVal = ((acc `xor` result) .&. (inputVal `xor` result) .&. 0x80) /= 0
+--             return (result16 >= 256, negativeVal, overflowVal, result)
+
+--     writeIORef (accumulator regs) result
+
+--     srWriteCarry (statusReg regs) newCarry
+--     srWriteZero (statusReg regs) (result == 0)
+
+--     srWriteNegative (statusReg regs) negativeVal
+--     srWriteOverflow (statusReg regs) overflowVal
+
+debugNibbleVal :: Word8 -> String
+debugNibbleVal input =
+    let lowNibble = input  .&. 0x0F
+        highNibble = input `shiftR` 4
+    in show highNibble ++ "_" ++ show lowNibble
+
+bcdAddNibble :: Bool -> Word8 -> Word8 -> (Bool, Bool, Bool, Word8)
+bcdAddNibble carry nibble1 nibble2 =
+    let carryNum = (fromIntegral . fromEnum) carry :: Word8
+        sumBin = nibble1 + nibble2 + carryNum
+        negativeVal = testBit sumBin 3
+        overflowVal = ((nibble1 `xor` sumBin) .&. (nibble2 `xor` sumBin) .&. 0x08) /= 0
+        (newCarry, result) = if sumBin > 9
+                                then (True, (sumBin + 6) .&. 0x0F)
+                                else (False, sumBin)
+    in (newCarry, negativeVal, overflowVal, result)
 
 -- Subtract Memory from Accumulator with Borrow
 sbc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()

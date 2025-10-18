@@ -140,24 +140,27 @@ run1Test ATest{name=name, initial=initial, final=final, cycles=cycles} = do
 
 runTests :: IO ()
 runTests = do
-    results <- forM (M.toList opcodeNames) $ \(opcode, name) -> do
-        putStrLn $ "Test: " ++ name
-        let fileCode = if length (showHex opcode "") == 2
-            then showHex opcode ""
-            else "0" ++ showHex opcode ""
+    -- results <- forM (M.toList opcodeNames) $ \(opcode, name) -> do
+    --     putStrLn $ "Test: " ++ name
+    --     let fileCode = if length (showHex opcode "") == 2
+    --         then showHex opcode ""
+    --         else "0" ++ showHex opcode ""
 
-        passFail <- runTestsFromFile fileCode
-        return (name, passFail)
+    --     passFail <- runTestsFromFile fileCode
+    --     return (name, passFail)
 
-    let passes = length $ filter snd results
-        total  = length results
+    -- let passes = length $ filter snd results
+    --     total  = length results
 
-    putStrLn "_________________"
-    forM_ results $ \(name, passed) ->
-        unless passed $ putStrLn $ name ++ " Failed"
+    -- putStrLn "_________________"
+    -- forM_ results $ \(name, passed) ->
+    --     unless passed $ putStrLn $ name ++ " Failed"
 
 
-    putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files."
+    -- putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files."
+
+    result <- runTestsFromFile "6d"
+    print result
         
 
 runTestsFromFile :: String -> IO Bool
