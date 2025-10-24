@@ -9,7 +9,6 @@ import qualified Data.ByteString.Lazy as B
 import qualified Data.Vector as IBVector
 import Data.Word (Word16, Word8)
 import Data.IORef (readIORef)
-import Numeric (showHex)
 import Data.List (intercalate)
 import Control.Monad (unless, forM, forM_)
 import qualified Data.Map as M
@@ -17,14 +16,17 @@ import qualified Data.Map as M
 
 import CPU6502 ( CPURegs, initRegisters, pc, accumulator, x, y, stackP, statusReg, opcodeTable, printRegs, showStatusReg )
 import Memory ( Memory, initMemory, writeMemory, readMemory )
-import Debug (showMemoryPage, opcodeNames)
+import Debug (showMemoryPage, opcodeNames, showHexF)
+import GHC.Integer (popCountInteger)
+-- import Numeric (showHex)
+
 
 
 type RamEntry = (Word16, Word8)
 
 showRam :: [RamEntry] -> String
 showRam entries = intercalate ", " $ map (\(addr, val) ->
-    "0x" ++ showHex addr "" ++ "=" ++ show val) entries
+    showHexF addr ++ "=" ++ showHexF val) entries
 
 data CycleEntry = CycleEntry
     { address :: Int
@@ -53,11 +55,11 @@ data CpuState = CpuState
 
 instance Show CpuState where
     show cpu =
-        "PC=0x" ++ showHex (pcState cpu) "" ++
-        " A="  ++ show (accumulatorState cpu) ++
-        " X="  ++ show (xState cpu) ++
-        " Y="  ++ show (yState cpu) ++
-        " SP=" ++ show (stackPState cpu) ++
+        "PC=" ++ showHexF (pcState cpu) ++
+        " A="  ++ showHexF (accumulatorState cpu) ++
+        " X="  ++ showHexF (xState cpu) ++
+        " Y="  ++ showHexF (yState cpu) ++
+        " SP=" ++ showHexF (stackPState cpu) ++
         " SR=" ++ showStatusReg (statusRegState cpu) ++
         " Memory= " ++ showRam (ram cpu)
 
@@ -82,6 +84,20 @@ data ATest = ATest
     } deriving (Show, Generic)
 
 instance FromJSON ATest
+
+showMemoryNotZeroFormat :: Memory -> IO String
+showMemoryNotZeroFormat mem =
+
+    let go :: Word16 -> String -> IO String
+        go 65535 output = return output
+        go pointer output = do
+            memVal <- readMemory mem pointer
+            let newAcc = if memVal == 0
+                            then output
+                            else showHexF pointer ++ "=" ++ showHexF memVal ++ ", " ++ output
+            go (pointer + 1) newAcc
+
+    in go 0 ""
 
 loadInitialRegistersAndMem :: CpuState -> IO (CPURegs, Memory)
 loadInitialRegistersAndMem CpuState{pcState=iPc, accumulatorState=iA, xState=iX, yState=iY, stackPState=iSp, statusRegState=iSr, ram=memoryVals} = do
@@ -132,9 +148,13 @@ run1Test ATest{name=name, initial=initial, final=final, cycles=cycles} = do
 
     unless result $ do
         putStrLn $ "Failed Test: " ++ name
-        print $ "Expected: " ++ show final
-        putStr "Actual: "
+        putStrLn $ "Initial : " ++ show initial
+        putStrLn $ "Expected: " ++ show final
+
+        actualMemoryValues <- showMemoryNotZeroFormat mem
+        putStr "Actual  : "
         printRegs regs
+        putStrLn $ "Memory= " ++ actualMemoryValues
 
     return result
 
@@ -157,9 +177,9 @@ runTests = do
     --     unless passed $ putStrLn $ name ++ " Failed"
 
 
-    -- putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files."
+    -- putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files"
 
-    result <- runTestsFromFile "6d"
+    result <- runTestsFromFile "20"
     print result
         
 

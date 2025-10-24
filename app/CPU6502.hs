@@ -2,14 +2,13 @@ module CPU6502 where
 
 import Memory (Memory, readMemory, writeMemory, initMemory)
 import LoadRom (loadRom)
-import Debug (getMnemonic, DebugState(..), handleInput)
+import Debug (getMnemonic, DebugState(..), handleInput, showHexF)
 
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
 import Data.Bits ( Bits((.|.), testBit, complement, (.&.), shiftL, shiftR, xor))
 import Data.IORef (IORef, readIORef, modifyIORef', newIORef, writeIORef)
 import Control.Monad (unless, when)
-import Numeric (showHex)
 import qualified Data.Vector as IBVector
 
 cpuMain :: IO ()
@@ -56,7 +55,7 @@ runInstructionsDebug mem regs count = loop 0 (DebugState [] False)
                 operand1 <- readMemory mem (pcVal+1)
                 operand2 <- readMemory mem (pcVal+2)
 
-                putStrLn $ "Next Opcode: " ++ getMnemonic currentInstructionOpcode ++ " " ++ showHex operand1 " " ++ showHex operand2 ""
+                putStrLn $ "Next Opcode: " ++ getMnemonic currentInstructionOpcode ++ " " ++ showHexF operand1 ++ " " ++ showHexF operand2
                 printRegs regs
 
                 let stop = not continueMode || (pcVal `elem` bps)
@@ -93,7 +92,7 @@ printRegs regs = do
     y'  <- readIORef (y regs)
     sp' <- readIORef (stackP regs)
     sr' <- readIORef (statusReg regs)
-    putStrLn $ "PC=0x" ++ showHex pc' "" ++ " A=" ++ show a' ++ " X=" ++ show x' ++ " Y=" ++ show y' ++ " SP=" ++ show sp' ++ " SR=" ++ showStatusReg sr'
+    putStrLn $ "PC=" ++ showHexF pc' ++ " A=" ++ showHexF a' ++ " X=" ++ showHexF x' ++ " Y=" ++ showHexF y' ++ " SP=" ++ showHexF sp' ++ " SR=" ++ showStatusReg sr'
 
 showStatusReg :: Word8 -> String
 showStatusReg w = [if testBit w i then '1' else '0' | i <- [7,6..0]]
@@ -142,7 +141,7 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x11 = indirectY ora
         assign 0x15 = zeropageX ora
         assign 0x18 = implied clc
-        assign 0x19 = absoluteX ora
+        assign 0x19 = absoluteY ora
         assign 0x1D = absoluteX ora
         assign 0x20 = absolute jsr
         assign 0x21 = indirectX and_
@@ -161,7 +160,7 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x39 = absoluteY and_
         assign 0x40 = implied rti
         assign 0x3D = absoluteX and_
-        assign 0xE3 = absoluteX rolM
+        assign 0x3E = absoluteX rolM
         assign 0x41 = indirectX eor
         assign 0x45 = zeropage eor
         assign 0x48 = implied pha
@@ -172,7 +171,7 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x51 = indirectY eor
         assign 0x55 = zeropageX eor
         assign 0x58 = implied cli
-        assign 0x59 = absoluteX eor
+        assign 0x59 = absoluteY eor
         assign 0x5D = absoluteX eor
         assign 0x60 = implied rts
         assign 0x61 = indirectX adc
@@ -249,7 +248,7 @@ opcodeTable = IBVector.generate 256 assign
         assign 0xD5 = zeropageX cmp
         assign 0xD6 = zeropageX dec
         assign 0xD8 = implied cld
-        assign 0xD9 = absoluteX cmp
+        assign 0xD9 = absoluteY cmp
         assign 0xDD = absoluteX cmp
         assign 0xDE = absoluteX dec
         assign 0xE0 = immediate cpx
@@ -336,6 +335,10 @@ absolute instr mem regs = do
     operand2 <- readMemory mem (pcVal + 2)
     let address = combineTwoBytes operand1 operand2
 
+    when (pcVal == 379) $ do
+        putStrLn $ "operand1: " ++ showHexF operand1 ++ " operand2: " ++ showHexF operand2
+        putStrLn $ "address: " ++ showHexF address
+
     writeIORef (pc regs) (pcVal + 3)
     instr address mem regs False
 
@@ -382,22 +385,20 @@ indirectX instr mem regs = do
     writeIORef (pc regs) (pcVal + 2)
     instr address mem regs False
 
--- (indirect),Y     ''
+-- (indirect),Y     read two bytes at zero-page operand and add Y, Use that as address
 indirectY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
 indirectY instr mem regs = do
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
+    byte1 <- readMemory mem (fromIntegral operand)
+    byte2 <- readMemory mem (fromIntegral (operand + 1))
 
     y' <- readIORef (y regs)
-    let pointer = operand + y' -- will wrap around automatically
-
-    byte1 <- readMemory mem (fromIntegral pointer)
-    byte2 <- readMemory mem (fromIntegral ((pointer + 1) :: Word8))
-
-    let address = combineTwoBytes byte1 byte2
+    let address = combineTwoBytes byte1 byte2 + fromIntegral y'
 
     writeIORef (pc regs) (pcVal + 2)
     instr address mem regs False
+
 
 -- (indirect)       only used by JMP
 indirect :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
@@ -406,10 +407,15 @@ indirect instr mem regs = do
 
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
-    let indirectAddress = combineTwoBytes operand1 operand2
 
-    byte1 <- readMemory mem indirectAddress
-    byte2 <- readMemory mem (indirectAddress + 1)
+    -- this part simulates the indirect JMP page boundary bug
+    let lowAddr  = combineTwoBytes operand1 operand2
+    let highAddr = if (lowAddr .&. 0x00FF) == 0x00FF
+                then lowAddr .&. 0xFF00   -- wrap within the same page
+                else lowAddr + 1
+
+    byte1 <- readMemory mem lowAddr
+    byte2 <- readMemory mem highAddr
     let address = combineTwoBytes byte1 byte2
 
     writeIORef (pc regs) (pcVal + 3)
@@ -440,55 +446,6 @@ relative instr mem regs = do
 -- %%% Arithmetic operations %%%
 
 -- Add Memory to Accumulator with Carry
-adc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-adc address mem regs isImmediate = do
-    inputVal <- if isImmediate
-        then return (fromIntegral address :: Word8)
-        else readMemory mem address
-
-    acc <- readIORef (accumulator regs)
-    carry <- srReadCarry (statusReg regs)
-    decimalFlag <- srReadDecimalMode (statusReg regs)
-
-    -- Failing Test: 6d 7b 32
-    -- putStrLn "___________________________________________--"
-    -- putStrLn $ "Inputs (normal decimal conversion). InputVal=" ++ show inputVal ++ " Acc=" ++ show acc ++ " carry=" ++ show carry
-    -- putStrLn $ "Inputs (converted as two nibbles). InputVal=" ++ debugNibbleVal inputVal ++ " Acc=" ++ debugNibbleVal acc
-
-    let result16 = (fromIntegral acc :: Word16) + (fromIntegral inputVal :: Word16) + (fromIntegral (fromEnum carry) :: Word16)
-        result = fromIntegral result16 :: Word8
-
-        bcdCorrectedResult16 = if decimalFlag
-            then
-                -- low nibble correction
-                let temp16 = if ((fromIntegral acc :: Word16) 
-                                  `xor` fromIntegral inputVal
-                                  `xor` result16) .&. 0x10 == 0x10
-                                then result16 + 0x06
-                                else result16
-                        
-                -- high nibble correction
-                in if temp16 .&. 0xF0 > 0x90
-                -- in if temp16 > 0x99
-                        then temp16 + 0x60
-                        else temp16
-            else 0 -- we wont be using it
-
-        bcdCorrectedResult = fromIntegral bcdCorrectedResult16 :: Word8
-
-
-    -- putStrLn $ "result16: " ++ show result16 ++ " BCD Result16: " ++ show bcdCorrectedResult
-
-    if decimalFlag
-        then writeIORef (accumulator regs) bcdCorrectedResult
-        else writeIORef (accumulator regs) result
-
-    -- flag values set based on the pre-BCD correction values
-    srWriteCarry (statusReg regs) (result16 >= 256)
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
-    srWriteOverflow (statusReg regs) (((acc `xor` result) .&. (inputVal `xor` result) .&. 0x80) /= 0)
-
 -- adc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 -- adc address mem regs isImmediate = do
 --     inputVal <- if isImmediate
@@ -497,41 +454,92 @@ adc address mem regs isImmediate = do
 
 --     acc <- readIORef (accumulator regs)
 --     carry <- srReadCarry (statusReg regs)
+--     decimalFlag <- srReadDecimalMode (statusReg regs)
 
---     -- Failed Test: 6d bc 5b
+--     -- Failing Test: 6d 7b 32
 --     -- putStrLn "___________________________________________--"
 --     -- putStrLn $ "Inputs (normal decimal conversion). InputVal=" ++ show inputVal ++ " Acc=" ++ show acc ++ " carry=" ++ show carry
---     putStrLn $ "Inputs (converted as two nibbles). InputVal=" ++ debugNibbleVal inputVal ++ " Acc=" ++ debugNibbleVal acc
+--     -- putStrLn $ "Inputs (converted as two nibbles). InputVal=" ++ debugNibbleVal inputVal ++ " Acc=" ++ debugNibbleVal acc
 
---     decimal <- srReadDecimalMode (statusReg regs)
+--     let result16 = (fromIntegral acc :: Word16) + (fromIntegral inputVal :: Word16) + (fromIntegral (fromEnum carry) :: Word16)
+--         result = fromIntegral result16 :: Word8
 
---     (newCarry, negativeVal, overflowVal, result) <- if decimal
---         then do
---             -- binary coded decimal BCD
---             let accLowNibble = acc .&. 0x0F
---                 inputLowNibble = inputVal  .&. 0x0F
---                 accHighNibble = acc `shiftR` 4
---                 inputHighNibble = inputVal `shiftR` 4
+--         bcdCorrectedResult16 = if decimalFlag
+--             then
+--                 -- low nibble correction
+--                 let temp16 = if ((fromIntegral acc :: Word16) 
+--                                   `xor` fromIntegral inputVal
+--                                   `xor` result16) .&. 0x10 == 0x10
+--                                 then result16 + 0x06
+--                                 else result16
+                        
+--                 -- high nibble correction
+--                 in if temp16 .&. 0xF0 > 0x90
+--                 -- in if temp16 > 0x99
+--                         then temp16 + 0x60
+--                         else temp16
+--             else 0 -- we wont be using it
 
---                 (lowCarry, _, _, lowResult) = bcdAddNibble carry accLowNibble inputLowNibble
---                 (highCarry, negativeVal, overflowVal, highResult) = bcdAddNibble lowCarry accHighNibble inputHighNibble
---             return (highCarry, negativeVal, overflowVal, (highResult `shiftL` 4) + lowResult)
+--         bcdCorrectedResult = fromIntegral bcdCorrectedResult16 :: Word8
 
---         else do
---             -- Normal binary addition
---             let result16 = (fromIntegral acc :: Word16) + (fromIntegral inputVal :: Word16) + (fromIntegral (fromEnum carry) :: Word16)
---                 negativeVal = testBit result16 7
---                 result = fromIntegral result16 :: Word8
---                 overflowVal = ((acc `xor` result) .&. (inputVal `xor` result) .&. 0x80) /= 0
---             return (result16 >= 256, negativeVal, overflowVal, result)
 
---     writeIORef (accumulator regs) result
+--     -- putStrLn $ "result16: " ++ show result16 ++ " BCD Result16: " ++ show bcdCorrectedResult
 
---     srWriteCarry (statusReg regs) newCarry
+--     if decimalFlag
+--         then writeIORef (accumulator regs) bcdCorrectedResult
+--         else writeIORef (accumulator regs) result
+
+--     -- flag values set based on the pre-BCD correction values
+--     srWriteCarry (statusReg regs) (result16 >= 256)
 --     srWriteZero (statusReg regs) (result == 0)
+--     srWriteNegative (statusReg regs) (testBit result 7)
+--     srWriteOverflow (statusReg regs) (((acc `xor` result) .&. (inputVal `xor` result) .&. 0x80) /= 0)
 
---     srWriteNegative (statusReg regs) negativeVal
---     srWriteOverflow (statusReg regs) overflowVal
+adc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+adc address mem regs isImmediate = do
+    inputVal <- if isImmediate
+        then return (fromIntegral address :: Word8)
+        else readMemory mem address
+
+    acc <- readIORef (accumulator regs)
+    carry <- srReadCarry (statusReg regs)
+
+    -- Failed Test: 6d bc 5b
+    -- putStrLn "___________________________________________--"
+    -- putStrLn $ "Inputs (normal decimal conversion). InputVal=" ++ show inputVal ++ " Acc=" ++ show acc ++ " carry=" ++ show carry
+    -- putStrLn $ "Inputs (converted as two nibbles). InputVal=" ++ debugNibbleVal inputVal ++ " Acc=" ++ debugNibbleVal acc
+
+    decimal <- srReadDecimalMode (statusReg regs)
+
+    -- Normal binary addition
+    let binaryVal16 = (fromIntegral acc :: Word16) + (fromIntegral inputVal :: Word16) + (fromIntegral (fromEnum carry) :: Word16)
+        binaryVal = fromIntegral binaryVal16 :: Word8
+
+    let (newCarry, result) = if decimal
+        then
+            -- binary coded decimal BCD
+            let accLowNibble = acc .&. 0x0F
+                inputLowNibble = inputVal  .&. 0x0F
+                accHighNibble = acc `shiftR` 4
+                inputHighNibble = inputVal `shiftR` 4
+
+                (lowCarry, lowResult) = bcdAddNibble carry accLowNibble inputLowNibble
+                (highCarry, highResult) = bcdAddNibble lowCarry accHighNibble inputHighNibble
+            in (highCarry, (highResult `shiftL` 4) + lowResult)
+
+        else
+            -- Normal binary addition
+            (binaryVal16 >= 256, binaryVal)
+
+
+    writeIORef (accumulator regs) result
+
+    srWriteCarry (statusReg regs) newCarry
+    srWriteZero (statusReg regs) (result == 0)
+
+    -- these flags are not right
+    srWriteNegative (statusReg regs) (testBit binaryVal 7)
+    srWriteOverflow (statusReg regs) (((acc `xor` binaryVal) .&. (inputVal `xor` binaryVal) .&. 0x80) /= 0)
 
 debugNibbleVal :: Word8 -> String
 debugNibbleVal input =
@@ -539,16 +547,14 @@ debugNibbleVal input =
         highNibble = input `shiftR` 4
     in show highNibble ++ "_" ++ show lowNibble
 
-bcdAddNibble :: Bool -> Word8 -> Word8 -> (Bool, Bool, Bool, Word8)
+bcdAddNibble :: Bool -> Word8 -> Word8 -> (Bool,  Word8)
 bcdAddNibble carry nibble1 nibble2 =
     let carryNum = (fromIntegral . fromEnum) carry :: Word8
         sumBin = nibble1 + nibble2 + carryNum
-        negativeVal = testBit sumBin 3
-        overflowVal = ((nibble1 `xor` sumBin) .&. (nibble2 `xor` sumBin) .&. 0x08) /= 0
         (newCarry, result) = if sumBin > 9
                                 then (True, (sumBin + 6) .&. 0x0F)
                                 else (False, sumBin)
-    in (newCarry, negativeVal, overflowVal, result)
+    in (newCarry, result)
 
 -- Subtract Memory from Accumulator with Borrow
 sbc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
@@ -655,9 +661,6 @@ txs :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 txs _ _ regs _ = do
     x' <- readIORef (x regs)
     writeIORef (stackP regs) x'
-
-    srWriteZero (statusReg regs) (x' == 0)
-    srWriteNegative (statusReg regs) (testBit x' 7)
 
 -- Transfer Index Y to Accumulator
 tya :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
@@ -990,8 +993,8 @@ bmi branchTarget _ regs _ = do
 -- Branch if Positive (Negative clear)
 bpl :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 bpl branchTarget _ regs _ = do
-    zero' <- srReadZero (statusReg regs)
-    unless zero' (writeIORef (pc regs) branchTarget)
+    negative' <- srReadNegative (statusReg regs)
+    unless negative' (writeIORef (pc regs) branchTarget)
 
 --- Branch if Overflow Clear
 bvc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
@@ -1029,11 +1032,11 @@ pullStack :: Memory -> CPURegs -> IO Word8
 pullStack mem regs = do
     stackPointer <- readIORef (stackP regs)
 
-    let stackTop = stackBase + fromIntegral stackPointer
+    let stackTop = stackBase + fromIntegral (stackPointer + 1) -- here the increment is done 'before' reading the stack
     
     writeIORef (stackP regs) (stackPointer + 1)
 
-    readMemory mem (stackTop + 1) -- here the increment is done 'before' reading the stack
+    readMemory mem stackTop
 
 
 -- Push Accumulator
@@ -1058,6 +1061,7 @@ pla :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 pla _ mem regs _ = do
 
     stackVal <- pullStack mem regs
+    -- putStrLn $ "StackVal: " ++ show stackVal
 
     writeIORef (accumulator regs) stackVal
 
@@ -1082,6 +1086,15 @@ jmp :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 jmp address _ regs _ = do
     writeIORef (pc regs) address
 
+jsrRecalcutateAddress :: Word16 -> Memory -> IO Word16
+jsrRecalcutateAddress operandFirstAddress mem = do
+    operand1 <- readMemory mem operandFirstAddress
+    operand2 <- readMemory mem (operandFirstAddress + 1)
+    let address = combineTwoBytes operand1 operand2
+
+    return address
+
+
 -- Jump to Subroutine
 jsr :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 jsr address mem regs _ = do
@@ -1089,13 +1102,19 @@ jsr address mem regs _ = do
     let instStartPCounter = pCounter - 3 -- absolute addressing function previously incremented PC which is unhelpful here
 
         returnAddress = instStartPCounter + 2 -- "the return address on the stack points 1 byte before the start of the next instruction"
-        highByte = fromIntegral (returnAddress `shiftR` 8) :: Word8
+        --highByte
         lowByte  = fromIntegral returnAddress              :: Word8
+    -- when (pCounter == 382) $ do
+    --     putStrLn $ "highByte: " ++ show highByte ++ " lowByte: " ++ show lowByte
     
-    pushStack mem regs highByte
     pushStack mem regs lowByte
+    let highByte = fromIntegral (returnAddress `shiftR` 8) :: Word8
 
-    writeIORef (pc regs) address
+    pushStack mem regs highByte
+
+    address2 <- jsrRecalcutateAddress (instStartPCounter+1) mem -- I hate this 
+
+    writeIORef (pc regs) address2
 
 -- Return from Subroutine
 rts :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
@@ -1103,7 +1122,7 @@ rts _ mem regs _ = do
     lowByte <- pullStack mem regs
     highByte <- pullStack mem regs
 
-    let returnAddress = fromIntegral (highByte `shiftL` 8) + fromIntegral lowByte + 1
+    let returnAddress = combineTwoBytes lowByte highByte + 1
 
     writeIORef (pc regs) returnAddress
 

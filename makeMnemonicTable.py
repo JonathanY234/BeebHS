@@ -1,6 +1,6 @@
 filepath = "app/CPU6502.hs"
-opcodeTableStart = 118
-opcodeTableEnd = 248
+opcodeTableStart = 135
+opcodeTableEnd = 273
 
 file = open(filepath, "r")
 
