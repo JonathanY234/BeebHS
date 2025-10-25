@@ -18,7 +18,7 @@ import CPU6502 ( CPURegs, initRegisters, pc, accumulator, x, y, stackP, statusRe
 import Memory ( Memory, initMemory, writeMemory, readMemory )
 import Debug (showMemoryPage, opcodeNames, showHexF)
 import GHC.Integer (popCountInteger)
--- import Numeric (showHex)
+import Numeric (showHex)
 
 
 

@@ -8,11 +8,17 @@ import HarteCpuTests (runTests)
 import Control.Concurrent (threadDelay)
 import Data.Word (Word8)
 import Control.Monad (unless)
+import System.Environment (getArgs)
 
 main :: IO ()
 main = do
-    runTests
-    --cpuMain
+    args <- getArgs
+    case args of
+        (arg:_) -> putStrLn ("First argument: " ++ arg)
+        []      -> putStrLn "No arguments provided"
+
+    --runTests
+    cpuMain
 
     -- theRom <- loadRom "roms/mos320.rom" 16384
     -- print theRom

@@ -1,6 +1,6 @@
 filepath = "app/CPU6502.hs"
-opcodeTableStart = 135
-opcodeTableEnd = 273
+opcodeTableStart = 143
+opcodeTableEnd = 291
 
 file = open(filepath, "r")
 
@@ -8,7 +8,7 @@ file = open(filepath, "r")
 for i in range(opcodeTableStart):
     file.readline()
 
-print("    [ --Generated from opcode table")
+print("    [ --Generated from opcode table by makeMnemonicTable.py")
 for i in range(opcodeTableEnd - opcodeTableStart):
     line = file.readline()
     cleanedLine = line[8:-1]

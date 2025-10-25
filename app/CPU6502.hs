@@ -10,22 +10,32 @@ import Data.Bits ( Bits((.|.), testBit, complement, (.&.), shiftL, shiftR, xor))
 import Data.IORef (IORef, readIORef, modifyIORef', newIORef, writeIORef)
 import Control.Monad (unless, when)
 import qualified Data.Vector as IBVector
+import Numeric (showHex)
 
 cpuMain :: IO ()
 cpuMain = do
     mem <- initMemory
     regs <- initRegisters 0 0 0 0 0xFF 0x20
 
-    --load the code
-    let codeOffset = 0x8000 :: Word16
-    loadRom "roms/o6502-2025-10-08-162857.bin" codeOffset mem
-    writeIORef (pc regs) codeOffset
+    -- This is the 'machine operating system' in the upper quarter of address space
+    loadRom "roms/os12.rom" 0xC000 mem
 
-    runInstructionsDebug mem regs 100
+    -- Load the correct basic rom to the sideways rom area
+    loadRom "roms/basic2.rom" 0x8000 mem
 
-    -- putStrLn "Memory address 0x2000"
-    -- print =<< readMemory mem 0x0200
-    -- showMemoryPage mem 0x00
+    initialPC <- getInitialPC mem
+    writeIORef (pc regs) initialPC
+
+    runInstructionsDebug mem regs 10000
+
+getInitialPC :: Memory -> IO Word16
+getInitialPC mem = do
+    let resetVector :: Word16
+        resetVector = 0xFFFC
+    low <- readMemory mem resetVector
+    high <- readMemory mem (resetVector+1)
+
+    return $ combineTwoBytes low high
 
 
 runInstructions :: Memory -> CPURegs -> Int -> IO ()
@@ -134,15 +144,20 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x00 = implied brk
         assign 0x01 = indirectX ora
         assign 0x05 = zeropage ora
+        assign 0x06 = zeropage aslM
         assign 0x08 = implied php
         assign 0x09 = immediate ora
+        assign 0x0A = implied aslA
         assign 0x0D = absolute ora
+        assign 0x0E = absolute aslM
         assign 0x10 = relative bpl
         assign 0x11 = indirectY ora
         assign 0x15 = zeropageX ora
+        assign 0x16 = zeropageX aslM
         assign 0x18 = implied clc
         assign 0x19 = absoluteY ora
         assign 0x1D = absoluteX ora
+        assign 0x1E = absoluteX aslM
         assign 0x20 = absolute jsr
         assign 0x21 = indirectX and_
         assign 0x25 = zeropage and_
@@ -158,21 +173,26 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x36 = zeropageX rolM
         assign 0x38 = implied sec
         assign 0x39 = absoluteY and_
-        assign 0x40 = implied rti
         assign 0x3D = absoluteX and_
         assign 0x3E = absoluteX rolM
+        assign 0x40 = implied rti
         assign 0x41 = indirectX eor
         assign 0x45 = zeropage eor
+        assign 0x46 = zeropage lsrM
         assign 0x48 = implied pha
         assign 0x49 = immediate eor
+        assign 0x4A = implied lsrA
         assign 0x4C = absolute jmp
         assign 0x4D = absolute eor
+        assign 0x4E = absolute lsrM
         assign 0x50 = relative bvc
         assign 0x51 = indirectY eor
         assign 0x55 = zeropageX eor
+        assign 0x56 = zeropageX lsrM
         assign 0x58 = implied cli
         assign 0x59 = absoluteY eor
         assign 0x5D = absoluteX eor
+        assign 0x5E = absoluteX lsrM
         assign 0x60 = implied rts
         assign 0x61 = indirectX adc
         assign 0x65 = zeropage adc
@@ -271,6 +291,8 @@ opcodeTable = IBVector.generate 256 assign
         assign 0xFD = absoluteX sbc
         assign 0xFE = absoluteX inc
         assign _    = instrUnimplemented
+
+        -- MUST ADD BIT TEST INSTRUCTIONS TO THE OPCODE TABLE
 
 instrUnimplemented :: Memory -> CPURegs -> IO ()
 instrUnimplemented _ _ = putStrLn "unimplementedFunction"
@@ -1102,19 +1124,17 @@ jsr address mem regs _ = do
     let instStartPCounter = pCounter - 3 -- absolute addressing function previously incremented PC which is unhelpful here
 
         returnAddress = instStartPCounter + 2 -- "the return address on the stack points 1 byte before the start of the next instruction"
-        --highByte
         lowByte  = fromIntegral returnAddress              :: Word8
-    -- when (pCounter == 382) $ do
-    --     putStrLn $ "highByte: " ++ show highByte ++ " lowByte: " ++ show lowByte
-    
-    pushStack mem regs lowByte
-    let highByte = fromIntegral (returnAddress `shiftR` 8) :: Word8
+        highByte = fromIntegral (returnAddress `shiftR` 8) :: Word8
 
+    
     pushStack mem regs highByte
 
-    address2 <- jsrRecalcutateAddress (instStartPCounter+1) mem -- I hate this 
+    pushStack mem regs lowByte -- is this the correct order I'm not sure
 
-    writeIORef (pc regs) address2
+    --address2 <- jsrRecalcutateAddress (instStartPCounter+1) mem -- I hate this 
+
+    writeIORef (pc regs) address
 
 -- Return from Subroutine
 rts :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
@@ -1122,7 +1142,11 @@ rts _ mem regs _ = do
     lowByte <- pullStack mem regs
     highByte <- pullStack mem regs
 
+    putStrLn $ "low byte: " ++ showHex lowByte " HighByte: " ++ showHex highByte ""
+    
+
     let returnAddress = combineTwoBytes lowByte highByte + 1
+    putStrLn $ "combined: " ++ showHexF returnAddress
 
     writeIORef (pc regs) returnAddress
 
