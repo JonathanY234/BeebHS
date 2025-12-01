@@ -1,32 +1,50 @@
 module CPU6502 where
 
-import Memory (Memory, readMemory, writeMemory, initMemory)
+import Memory(initMemory, readMemory, writeMemory, Memory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters) 
 import LoadRom (loadRom)
-import Debug (getMnemonic, DebugState(..), handleInput, showHexF)
+import Debug ( DebugState(..), handleInput, debuggerLineOutput)
 
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
 import Data.Bits ( Bits((.|.), testBit, complement, (.&.), shiftL, shiftR, xor))
-import Data.IORef (IORef, readIORef, modifyIORef', newIORef, writeIORef)
+import Data.IORef (IORef, readIORef, modifyIORef', writeIORef)
 import Control.Monad (unless, when)
 import qualified Data.Vector as IBVector
-import Numeric (showHex)
 
-cpuMain :: IO ()
-cpuMain = do
+import Control.Monad (forM)
+
+cpuMain :: Bool -> IO [Word8]
+cpuMain isDebug = do
     mem <- initMemory
     regs <- initRegisters 0 0 0 0 0xFF 0x20
 
     -- This is the 'machine operating system' in the upper quarter of address space
-    loadRom "roms/os12.rom" 0xC000 mem
+    loadRom "roms/jonny_mem_dump_os_area_only" 0xC000 mem
 
     -- Load the correct basic rom to the sideways rom area
     loadRom "roms/basic2.rom" 0x8000 mem
 
     initialPC <- getInitialPC mem
     writeIORef (pc regs) initialPC
+    srWriteInterruptDisable (statusReg regs) True
 
-    runInstructionsDebug mem regs 10000
+    if isDebug
+        then runInstructionsDebug mem regs 600000
+        else runInstructions mem regs 600000
+
+    --temp 
+    getMode7Frame mem
+
+-- temp
+mode7VideoArea :: Word16
+mode7VideoArea = 0x7C00
+mode7ScreenSize :: Int
+mode7ScreenSize = 40 * 25
+getMode7Frame :: Memory -> IO [Word8]
+getMode7Frame mem = do
+    let addresses = [mode7VideoArea .. mode7VideoArea + fromIntegral mode7ScreenSize - 1]
+    forM addresses (readMemory mem)
+-- end temp 
 
 getInitialPC :: Memory -> IO Word16
 getInitialPC mem = do
@@ -51,7 +69,6 @@ runInstructions mem regs count = loop 0
                 instr mem regs
                 loop (n+1)
 
--- breakpoints list, are we step or continue
 runInstructionsDebug :: Memory -> CPURegs -> Int -> IO ()
 runInstructionsDebug mem regs count = loop 0 (DebugState [] False)
     where
@@ -65,14 +82,16 @@ runInstructionsDebug mem regs count = loop 0 (DebugState [] False)
                 operand1 <- readMemory mem (pcVal+1)
                 operand2 <- readMemory mem (pcVal+2)
 
-                putStrLn $ "Next Opcode: " ++ getMnemonic currentInstructionOpcode ++ " " ++ showHexF operand1 ++ " " ++ showHexF operand2
-                printRegs regs
+
+                putStr $ debuggerLineOutput pcVal currentInstructionOpcode operand1 operand2
 
                 let stop = not continueMode || (pcVal `elem` bps)
 
                 newDebugState <- if stop
-                    then handleInput mem debugState
-                    else return debugState
+                    then handleInput mem regs debugState
+                    else do
+                        putStrLn ""
+                        return debugState
 
                 instr mem regs
                 
@@ -82,30 +101,7 @@ runInstructionsDebug mem regs count = loop 0 (DebugState [] False)
 -- Memory woz ere
 
 -- __________Registers__________
-data CPURegs = CPURegs {pc :: IORef Word16, accumulator :: IORef Word8, x :: IORef Word8, y :: IORef Word8, stackP :: IORef Word8, statusReg :: IORef Word8}
-
-initRegisters :: Word16 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> IO CPURegs
-initRegisters ipc ia ix iy isp isr = do
-    pcRef <- newIORef ipc
-    aRef  <- newIORef ia
-    xRef  <- newIORef ix
-    yRef  <- newIORef iy
-    spRef <- newIORef isp
-    srRef <- newIORef isr
-    return (CPURegs pcRef aRef xRef yRef spRef srRef)
-
-printRegs :: CPURegs -> IO ()
-printRegs regs = do
-    pc' <- readIORef (pc regs)
-    a'  <- readIORef (accumulator regs)
-    x'  <- readIORef (x regs)
-    y'  <- readIORef (y regs)
-    sp' <- readIORef (stackP regs)
-    sr' <- readIORef (statusReg regs)
-    putStrLn $ "PC=" ++ showHexF pc' ++ " A=" ++ showHexF a' ++ " X=" ++ showHexF x' ++ " Y=" ++ showHexF y' ++ " SP=" ++ showHexF sp' ++ " SR=" ++ showStatusReg sr'
-
-showStatusReg :: Word8 -> String
-showStatusReg w = [if testBit w i then '1' else '0' | i <- [7,6..0]]
+-- Registers woz ere
 
 -- __________StatusReg Read Helpers__________
 srReadBit :: Word8 -> IORef Word8 -> IO Bool
@@ -160,11 +156,13 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x1E = absoluteX aslM
         assign 0x20 = absolute jsr
         assign 0x21 = indirectX and_
+        assign 0x24 = zeropage bit
         assign 0x25 = zeropage and_
         assign 0x26 = zeropage rolM
         assign 0x28 = implied plp
         assign 0x29 = immediate and_
         assign 0x2A = implied rolA
+        assign 0x2C = absolute bit
         assign 0x2D = absolute and_
         assign 0x2E = absolute rolM
         assign 0x30 = relative bmi
@@ -292,7 +290,7 @@ opcodeTable = IBVector.generate 256 assign
         assign 0xFE = absoluteX inc
         assign _    = instrUnimplemented
 
-        -- MUST ADD BIT TEST INSTRUCTIONS TO THE OPCODE TABLE
+        -- Read Two Bytes helper function ???
 
 instrUnimplemented :: Memory -> CPURegs -> IO ()
 instrUnimplemented _ _ = putStrLn "unimplementedFunction"
@@ -356,10 +354,6 @@ absolute instr mem regs = do
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
     let address = combineTwoBytes operand1 operand2
-
-    when (pcVal == 379) $ do
-        putStrLn $ "operand1: " ++ showHexF operand1 ++ " operand2: " ++ showHexF operand2
-        putStrLn $ "address: " ++ showHexF address
 
     writeIORef (pc regs) (pcVal + 3)
     instr address mem regs False
@@ -443,6 +437,8 @@ indirect instr mem regs = do
     writeIORef (pc regs) (pcVal + 3)
     instr address mem regs False
 
+--accumulator ::
+
 -- implied      No operands because memory is not used (unless BRK :<
 implied :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
 implied instr mem regs = do
@@ -468,55 +464,6 @@ relative instr mem regs = do
 -- %%% Arithmetic operations %%%
 
 -- Add Memory to Accumulator with Carry
--- adc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
--- adc address mem regs isImmediate = do
---     inputVal <- if isImmediate
---         then return (fromIntegral address :: Word8)
---         else readMemory mem address
-
---     acc <- readIORef (accumulator regs)
---     carry <- srReadCarry (statusReg regs)
---     decimalFlag <- srReadDecimalMode (statusReg regs)
-
---     -- Failing Test: 6d 7b 32
---     -- putStrLn "___________________________________________--"
---     -- putStrLn $ "Inputs (normal decimal conversion). InputVal=" ++ show inputVal ++ " Acc=" ++ show acc ++ " carry=" ++ show carry
---     -- putStrLn $ "Inputs (converted as two nibbles). InputVal=" ++ debugNibbleVal inputVal ++ " Acc=" ++ debugNibbleVal acc
-
---     let result16 = (fromIntegral acc :: Word16) + (fromIntegral inputVal :: Word16) + (fromIntegral (fromEnum carry) :: Word16)
---         result = fromIntegral result16 :: Word8
-
---         bcdCorrectedResult16 = if decimalFlag
---             then
---                 -- low nibble correction
---                 let temp16 = if ((fromIntegral acc :: Word16) 
---                                   `xor` fromIntegral inputVal
---                                   `xor` result16) .&. 0x10 == 0x10
---                                 then result16 + 0x06
---                                 else result16
-                        
---                 -- high nibble correction
---                 in if temp16 .&. 0xF0 > 0x90
---                 -- in if temp16 > 0x99
---                         then temp16 + 0x60
---                         else temp16
---             else 0 -- we wont be using it
-
---         bcdCorrectedResult = fromIntegral bcdCorrectedResult16 :: Word8
-
-
---     -- putStrLn $ "result16: " ++ show result16 ++ " BCD Result16: " ++ show bcdCorrectedResult
-
---     if decimalFlag
---         then writeIORef (accumulator regs) bcdCorrectedResult
---         else writeIORef (accumulator regs) result
-
---     -- flag values set based on the pre-BCD correction values
---     srWriteCarry (statusReg regs) (result16 >= 256)
---     srWriteZero (statusReg regs) (result == 0)
---     srWriteNegative (statusReg regs) (testBit result 7)
---     srWriteOverflow (statusReg regs) (((acc `xor` result) .&. (inputVal `xor` result) .&. 0x80) /= 0)
-
 adc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 adc address mem regs isImmediate = do
     inputVal <- if isImmediate
@@ -1142,11 +1089,7 @@ rts _ mem regs _ = do
     lowByte <- pullStack mem regs
     highByte <- pullStack mem regs
 
-    putStrLn $ "low byte: " ++ showHex lowByte " HighByte: " ++ showHex highByte ""
-    
-
     let returnAddress = combineTwoBytes lowByte highByte + 1
-    putStrLn $ "combined: " ++ showHexF returnAddress
 
     writeIORef (pc regs) returnAddress
 

@@ -1,4 +1,4 @@
-module GraphicsSDLStuff where
+module SDLVideoOutput where
 
 import qualified SDL
 import qualified Data.Text
@@ -16,6 +16,9 @@ screenWidth = 640
 screenHeight :: CInt
 screenHeight = 500
 
+borderSize :: CInt
+borderSize = 25
+
 initVideo :: IO SDLContext
 initVideo = do
     SDL.initialize [SDL.InitVideo]
@@ -23,7 +26,7 @@ initVideo = do
 
     window <- SDL.createWindow (Data.Text.pack "BBCulator") SDL.defaultWindow { SDL.windowInitialSize = SDL.V2 screenWidth screenHeight }
     renderer <- SDL.createRenderer window (-1) SDL.defaultRenderer
-    texture <- SDL.createTexture renderer SDL.RGBA8888 SDL.TextureAccessStreaming (SDL.V2 screenWidth screenHeight)
+    texture <- SDL.createTexture renderer SDL.RGBA8888 SDL.TextureAccessStreaming (SDL.V2 (screenWidth + 2 * borderSize) (screenHeight + 2 * borderSize))
 
     let ctxt = SDLContext window renderer texture
 
@@ -48,13 +51,13 @@ renderMode7Frame :: SDLContext -> IBVector.Vector [[Bool]] -> [Word8] -> IO ()
 renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVector letterIndexes = do
     _ <- SDL.lockTexture texture_ Nothing >>= \(pixelsPtr, pitch) -> do
         
-        let letterScreenCoords = [(x, y) | x <- [1..40], y <- [1..25]]
+        let letterScreenCoords = [(x, y) | y <- [1..25], x <- [1..40]]
 
             drawLetter :: Word8 -> (Int, Int) -> IO ()
             drawLetter letterIndex (cellX , cellY) = do
-                let trueX = (cellX -1) * 16
-                    trueY = (cellY -1) * 20
-                    charBitmap = fontVector IBVector.! fromIntegral letterIndex  -- [[Bool]]
+                let trueX = (cellX -1) * 16 + fromIntegral borderSize
+                    trueY = (cellY -1) * 20 + fromIntegral borderSize
+                    charBitmap = fontVector IBVector.! fromIntegral (letterIndex -0x20)  -- -0x20 maps memory values to font indexed (temp solution)
 
                 forM_ (zip [0..] charBitmap) $ \(row, rowPixels) ->
                     forM_ (zip [0..] rowPixels) $ \(col, bit) -> do
