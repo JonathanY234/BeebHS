@@ -104,7 +104,7 @@ loadInitialRegistersAndMem :: CpuState -> IO (CPURegs, Memory)
 loadInitialRegistersAndMem CpuState{pcState=iPc, accumulatorState=iA, xState=iX, yState=iY, stackPState=iSp, statusRegState=iSr, ram=memoryVals} = do
 
     regs <- initRegisters iPc iA iX iY iSp iSr
-    mem <- initMemory
+    mem <- initMemory 0x00
     mapM_ (uncurry (writeMemory mem)) memoryVals
 
     return (regs, mem)
@@ -120,7 +120,7 @@ isFinalRegsAndMemSameAsExpected regs mem CpuState{pcState=fPc, accumulatorState=
 
     let regsMatch = and [ fPc == pcVal, fA  == aVal, fX  == xVal, fY  == yVal, fSp == spVal, fSr == srVal ]
 
-    finalMem <- initMemory
+    finalMem <- initMemory 0x00
     mapM_ (uncurry (writeMemory finalMem)) memoryVals
 
     let allEqual i
@@ -161,27 +161,27 @@ run1Test ATest{name=name, initial=initial, final=final, cycles=cycles} = do
 
 runTests :: IO ()
 runTests = do
-    results <- forM (M.toList opcodeNames) $ \(opcode, name) -> do
-        putStrLn $ "Test: " ++ name
-        let fileCode = if length (showHex opcode "") == 2
-            then showHex opcode ""
-            else "0" ++ showHex opcode ""
+    -- results <- forM (M.toList opcodeNames) $ \(opcode, name) -> do
+    --     putStrLn $ "Test: " ++ name
+    --     let fileCode = if length (showHex opcode "") == 2
+    --         then showHex opcode ""
+    --         else "0" ++ showHex opcode ""
 
-        passFail <- runTestsFromFile fileCode
-        return (name, passFail)
+    --     passFail <- runTestsFromFile fileCode
+    --     return (name, passFail)
 
-    let passes = length $ filter snd results
-        total  = length results
+    -- let passes = length $ filter snd results
+    --     total  = length results
 
-    putStrLn "_________________"
-    forM_ results $ \(name, passed) ->
-        unless passed $ putStrLn $ name ++ " Failed"
+    -- putStrLn "_________________"
+    -- forM_ results $ \(name, passed) ->
+    --     unless passed $ putStrLn $ name ++ " Failed"
 
 
-    putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files"
+    -- putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files"
 
-    -- result <- runTestsFromFile "20"
-    -- print result
+    result <- runTestsFromFile "00"
+    print result
         
 
 runTestsFromFile :: String -> IO Bool

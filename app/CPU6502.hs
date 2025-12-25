@@ -3,6 +3,7 @@ module CPU6502 where
 import Memory(initMemory, readMemory, writeMemory, Memory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters) 
 import LoadRom (loadRom)
 import Debug ( DebugState(..), handleInput, debuggerLineOutput)
+import Utilities (showHexF)
 
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
@@ -13,14 +14,13 @@ import qualified Data.Vector as IBVector
 
 import Control.Monad (forM)
 
-cpuMain :: Bool -> IO [Word8]
-cpuMain isDebug = do
-    mem <- initMemory
+cpuInit :: IO (Memory, CPURegs)
+cpuInit = do
+    mem <- initMemory 0xFF
     regs <- initRegisters 0 0 0 0 0xFF 0x20
 
     -- This is the 'machine operating system' in the upper quarter of address space
     loadRom "roms/jonny_mem_dump_os_area_only" 0xC000 mem
-
     -- Load the correct basic rom to the sideways rom area
     loadRom "roms/basic2.rom" 0x8000 mem
 
@@ -28,23 +28,21 @@ cpuMain isDebug = do
     writeIORef (pc regs) initialPC
     srWriteInterruptDisable (statusReg regs) True
 
+    return (mem, regs)
+
+cpuRun :: Memory -> CPURegs -> Bool -> IO ()
+cpuRun mem regs isDebug = do
+
     if isDebug
-        then runInstructionsDebug mem regs 600000
-        else runInstructions mem regs 600000
+        -- then runInstructionsDebug mem regs 5700
+        then runInstructionsDebug mem regs 1000000
+        -- else runInstructions mem regs 5700
+        else runInstructions mem regs 1000000
 
     --temp 
-    getMode7Frame mem
+    --getMode7Frame mem
 
--- temp
-mode7VideoArea :: Word16
-mode7VideoArea = 0x7C00
-mode7ScreenSize :: Int
-mode7ScreenSize = 40 * 25
-getMode7Frame :: Memory -> IO [Word8]
-getMode7Frame mem = do
-    let addresses = [mode7VideoArea .. mode7VideoArea + fromIntegral mode7ScreenSize - 1]
-    forM addresses (readMemory mem)
--- end temp 
+
 
 getInitialPC :: Memory -> IO Word16
 getInitialPC mem = do
@@ -137,7 +135,7 @@ opcodeTable :: IBVector.Vector (Memory -> CPURegs -> IO ())
 opcodeTable = IBVector.generate 256 assign
     where
         assign :: Int -> (Memory -> CPURegs -> IO ())
-        assign 0x00 = implied brk
+        assign 0x00 = brk undefined
         assign 0x01 = indirectX ora
         assign 0x05 = zeropage ora
         assign 0x06 = zeropage aslM
@@ -439,7 +437,7 @@ indirect instr mem regs = do
 
 --accumulator ::
 
--- implied      No operands because memory is not used (unless BRK :<
+-- implied      No operands because memory is not used (actually it seems it is)
 implied :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
 implied instr mem regs = do
     pcVal <- readIORef (pc regs)
@@ -472,11 +470,6 @@ adc address mem regs isImmediate = do
 
     acc <- readIORef (accumulator regs)
     carry <- srReadCarry (statusReg regs)
-
-    -- Failed Test: 6d bc 5b
-    -- putStrLn "___________________________________________--"
-    -- putStrLn $ "Inputs (normal decimal conversion). InputVal=" ++ show inputVal ++ " Acc=" ++ show acc ++ " carry=" ++ show carry
-    -- putStrLn $ "Inputs (converted as two nibbles). InputVal=" ++ debugNibbleVal inputVal ++ " Acc=" ++ debugNibbleVal acc
 
     decimal <- srReadDecimalMode (statusReg regs)
 
@@ -1030,7 +1023,6 @@ pla :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 pla _ mem regs _ = do
 
     stackVal <- pullStack mem regs
-    -- putStrLn $ "StackVal: " ++ show stackVal
 
     writeIORef (accumulator regs) stackVal
 
@@ -1093,18 +1085,17 @@ rts _ mem regs _ = do
 
     writeIORef (pc regs) returnAddress
 
--- %%% Interupts %%%
+-- %%% Interrupts %%%
 
 irqVector :: Word16
 irqVector = 0xFFFE
 
--- break: Software IRQ
-brk :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-brk _ mem regs _ = do
+-- IRQ interrupt
+irq :: Memory -> CPURegs -> IO ()
+irq mem regs = do
     pCounter <- readIORef (pc regs)
-    let instStartPCounter = pCounter - 1 -- like JSR but for implied
 
-        returnAddress = instStartPCounter + 2 -- two bytes despite being implied (1 byte) leaves room for "interupt reason"
+    let returnAddress = pCounter
 
         highByte = fromIntegral (returnAddress `shiftR` 8)  :: Word8
         lowByte  = fromIntegral returnAddress               :: Word8
@@ -1121,11 +1112,26 @@ brk _ mem regs _ = do
     lowByte2 <- readMemory mem irqVector
     highByte2 <- readMemory mem (irqVector + 1)
 
-    let jumpAddress = fromIntegral (highByte2 `shiftL` 8) + fromIntegral lowByte2 + 1
+    let jumpAddress :: Word16
+        jumpAddress = (fromIntegral highByte2 :: Word16) `shiftL` 8 + (fromIntegral lowByte2 :: Word16)
+
 
     writeIORef (pc regs) jumpAddress
 
--- Return From Interupt
+
+-- brk :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+-- brk _ mem regs _ =
+--     irq mem regs True
+
+-- break: Software IRQ
+brk :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
+brk _ mem regs = do
+
+    pcVal <- readIORef (pc regs)
+    writeIORef (pc regs) (pcVal + 2)
+    irq mem regs
+
+-- Return From Interrupt
 rti :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 rti _ mem regs _ = do
     sr <- pullStack mem regs

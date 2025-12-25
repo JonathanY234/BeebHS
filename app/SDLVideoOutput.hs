@@ -1,5 +1,7 @@
 module SDLVideoOutput where
 
+import KeyboardInput (updateKeyboardMatrix)
+
 import qualified SDL
 import qualified Data.Text
 import SDL.Vect (V4(..))
@@ -7,7 +9,7 @@ import Foreign.Storable (pokeByteOff)
 import qualified Data.Vector as IBVector
 import Foreign.C.Types (CInt)
 import Data.Word (Word8)
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 
 data SDLContext = SDLContext { window :: SDL.Window, renderer :: SDL.Renderer, texture :: SDL.Texture }
 
@@ -17,14 +19,18 @@ screenHeight :: CInt
 screenHeight = 500
 
 borderSize :: CInt
-borderSize = 25
+borderSize = 40
 
 initVideo :: IO SDLContext
 initVideo = do
     SDL.initialize [SDL.InitVideo]
+
+
+    -- Options: ScaleNearest, ScaleLinear, ScaleBest
+    SDL.HintRenderScaleQuality SDL.$= SDL.ScaleNearest
     
 
-    window <- SDL.createWindow (Data.Text.pack "BBCulator") SDL.defaultWindow { SDL.windowInitialSize = SDL.V2 screenWidth screenHeight }
+    window <- SDL.createWindow (Data.Text.pack "BBCulator") SDL.defaultWindow { SDL.windowInitialSize = SDL.V2 (screenWidth + 2 * borderSize) (screenHeight + 2 * borderSize), SDL.windowResizable = True}
     renderer <- SDL.createRenderer window (-1) SDL.defaultRenderer
     texture <- SDL.createTexture renderer SDL.RGBA8888 SDL.TextureAccessStreaming (SDL.V2 (screenWidth + 2 * borderSize) (screenHeight + 2 * borderSize))
 
@@ -37,14 +43,21 @@ initVideo = do
 
     return ctxt
 
-eventLoop :: IO Bool
-eventLoop = do
+eventLoop :: IO (Bool, Bool)
+eventLoop  = do
     events <- SDL.pollEvents
     let quit = SDL.QuitEvent `elem` map SDL.eventPayload events
-    return quit
-    -- if quit
-    --     then return True   -- quit button pressed
-    --     else return False
+
+    let eventIsQPress event =
+            case SDL.eventPayload event of
+                SDL.KeyboardEvent keyboardEvent ->
+                    SDL.keyboardEventKeyMotion keyboardEvent == SDL.Pressed &&
+                    SDL.keysymKeycode (SDL.keyboardEventKeysym keyboardEvent) == SDL.KeycodeQ
+                _ -> False
+        qPressed = any eventIsQPress events
+    when qPressed $ putStrLn "Q pressed"
+
+    return (quit, qPressed)
 
 
 renderMode7Frame :: SDLContext -> IBVector.Vector [[Bool]] -> [Word8] -> IO ()
@@ -92,4 +105,3 @@ endVideo ctxt = do
     SDL.destroyRenderer (renderer ctxt)
     SDL.destroyWindow (window ctxt)
     SDL.quit
-

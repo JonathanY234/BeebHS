@@ -15,8 +15,8 @@ import Data.Bits (Bits(testBit))
 showMemoryPage :: Memory -> Word8 -> IO ()
 showMemoryPage memory pageNum = do
     let (startAddress :: Word16) = fromIntegral pageNum * 256
-        itemSpacing = 5
-    putStr $ replicate itemSpacing ' '
+        itemSpacing = 3
+    putStr $ replicate itemSpacing ' ' ++ "   "
     forM_ ([0 .. 15] :: [Word16]) $ \address -> do
         let hexVal = showHexF address
             padding = replicate (itemSpacing - length hexVal) ' '
@@ -25,7 +25,7 @@ showMemoryPage memory pageNum = do
     forM_ [startAddress, startAddress + 16 .. startAddress + 255] $ \yAxisAddress -> do
         let hexVal = showHexF yAxisAddress
         let padding = replicate (itemSpacing - length hexVal) ' '
-        putStr $ hexVal ++ padding
+        putStr $ hexVal ++ padding ++ ": "
 
         forM_ [yAxisAddress .. yAxisAddress + 15] $ \address -> do
             val <- readMemory memory address

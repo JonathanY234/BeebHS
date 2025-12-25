@@ -1,6 +1,6 @@
 module Main where
 
-import CPU6502 (cpuMain)
+import CPU6502 (cpuRun, cpuInit, irq)
 import LoadRom (loadMode7Font)
 import SDLVideoOutput (initVideo, endVideo, eventLoop, renderMode7Frame)
 import HarteCpuTests (runTests)
@@ -10,6 +10,14 @@ import Control.Monad (unless, when)
 import System.Environment (getArgs)
 import System.Exit (exitSuccess)
 
+--temp
+import Data.Word (Word16, Word8)
+import Memory (Memory, readMemory, writeMemory, writeMemory)
+import Control.Monad (forM)
+import Data.Bits (Bits (complement))
+import KeyboardInput (updateKeyboardMatrix)
+--endtemp
+
 main :: IO ()
 main = do
     args <- getArgs
@@ -18,25 +26,54 @@ main = do
             exitSuccess
     let isDebug = "-debug" `elem` args
 
-    frame <- cpuMain isDebug
+    
 
+
+    -- initialisation 
     --m7Font <- loadMode7Font "roms/original.fnt" 24
     m7Font <- loadMode7Font "roms/basicsdl.fnt" 28
-    let targetHz = 50
-    -- let charsToDraw :: [Word8]
-    --     charsToDraw = [0..(25*40)]
-
+    let (targetHz :: Int) = 50
+    (mem, regs) <- cpuInit
     sdlCtxt <- initVideo
+
+    -- cpuRun mem regs False
+    -- cpuRun mem regs True
     
     let mainLoop :: IO ()
         mainLoop = do
-            quit <- eventLoop
+            (quit, qPressed) <- eventLoop
+            updateKeyboardMatrix mem
 
             unless quit $ do
+                
+                cpuRun mem regs isDebug
+
+                frame <- getMode7Frame mem
                 renderMode7Frame sdlCtxt m7Font frame
-                threadDelay (1000000 `div` targetHz)
+
+                when qPressed $ do
+                    print qPressed
+                    -- fe43 <- readMemory mem 0xFE43
+                    -- print fe43
+                    --writeMemory mem 0xfe40 0x21
+                    -- writeMemory mem 0xfe41 0x52
+                    -- writeMemory mem 0xfe43 0x00
+                    -- writeMemory mem 0xfe4f 0x21
+                    irq mem regs
+
+                --threadDelay (1000000 `div` targetHz)
                 mainLoop
 
     mainLoop
     endVideo sdlCtxt
 
+-- temp
+mode7VideoArea :: Word16
+mode7VideoArea = 0x7C00
+mode7ScreenSize :: Int
+mode7ScreenSize = 40 * 25
+getMode7Frame :: Memory -> IO [Word8]
+getMode7Frame mem = do
+    let addresses = [mode7VideoArea .. mode7VideoArea + fromIntegral mode7ScreenSize - 1]
+    forM addresses (readMemory mem)
+-- end temp 
