@@ -7,7 +7,7 @@ import System.IO (hFlush, stdout)
 import Data.IORef (readIORef)
 import Data.Word (Word8, Word16)
 import qualified Data.Map as M
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Numeric (showHex, readHex)
 import Data.Char (toUpper)
 import Data.Bits (Bits(testBit))
@@ -118,16 +118,16 @@ opcodeNames = M.fromList
 -- B, Breakpoint
 -- M, show memory page
 
-data DebugState = DebugState { breakpoints :: [Word16], continueMode :: Bool }
+data DebugState = DebugState { breakpoints :: [Word16],  stepsRemaining :: Int, pause :: Bool}
 
 -- processing input is pain
 handleInput :: Memory -> CPURegs -> DebugState -> IO DebugState
-handleInput mem regs debugState@(DebugState bps continueMode) = do
+handleInput mem regs debugState@(DebugState bps stepsRemaining pause) = do
     (command, value) <- getValidInput
     case command of
-        "C" -> return (DebugState bps True)
-        "S" -> return (DebugState bps False)
-        "B" -> handleInput mem regs (DebugState (value:bps) continueMode)
+        "C" -> return (DebugState bps (-1) False)
+        "S" -> return (DebugState bps (fromIntegral value) True)
+        "B" -> handleInput mem regs (DebugState (value:bps) stepsRemaining pause)
         "R" -> do
             printRegs regs
             handleInput mem regs debugState
@@ -149,11 +149,11 @@ getValidInput = do
 
     (command, value :: Word16, numErr) <- case input of
         [] -> return ("", 0, True)
-        [cmd] -> return (map toUpper cmd, 0, True)
+        [cmd] -> return (map toUpper cmd, 2, True)
         (cmd:val:_) ->
             case parseHex val of
                 Just n  -> return (map toUpper cmd, n, False)
-                Nothing -> return (map toUpper cmd, 0, True)
+                Nothing -> return (map toUpper cmd, 2, True)
             where
                 parseHex :: String -> Maybe Word16
                 parseHex s = case readHex s of
@@ -170,8 +170,12 @@ getValidInput = do
 
     case commandShort of
         "C" -> return (commandShort, 0)
-        "S" -> return (commandShort, 0)
         "R" -> return (commandShort, 0)
+        
+        "S" -> case (numErr, value) of
+            (_, 0)     -> putStrLn "Cannot step 0" >> getValidInput
+            (True, _)  -> return (commandShort, 1)
+            (False, _) -> return (commandShort, value)
         "B" ->
             if numErr
                 then do

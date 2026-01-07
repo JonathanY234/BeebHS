@@ -1,9 +1,10 @@
 module Main where
 
-import CPU6502 (cpuRun, cpuInit, irq)
+import CPU6502 (cpuInit, irq, runInstructionsDebug, runInstructions, debuggerStart)
 import LoadRom (loadMode7Font)
 import SDLVideoOutput (initVideo, endVideo, eventLoop, renderMode7Frame)
 import HarteCpuTests (runTests)
+import Debug (DebugState, DebugState(..))
 
 import Control.Concurrent (threadDelay)
 import Control.Monad (unless, when)
@@ -14,7 +15,6 @@ import System.Exit (exitSuccess)
 import Data.Word (Word16, Word8)
 import Memory (Memory, readMemory, writeMemory, writeMemory)
 import Control.Monad (forM)
-import Data.Bits (Bits (complement))
 import KeyboardInput (updateKeyboardMatrix)
 --endtemp
 
@@ -25,10 +25,7 @@ main = do
             runTests
             exitSuccess
     let isDebug = "-debug" `elem` args
-
     
-
-
     -- initialisation 
     --m7Font <- loadMode7Font "roms/original.fnt" 24
     m7Font <- loadMode7Font "roms/basicsdl.fnt" 28
@@ -39,14 +36,18 @@ main = do
     -- cpuRun mem regs False
     -- cpuRun mem regs True
     
-    let mainLoop :: IO ()
-        mainLoop = do
+    let mainLoop :: DebugState -> IO ()
+        mainLoop debugState = do
             (quit, qPressed) <- eventLoop
             updateKeyboardMatrix mem
 
             unless quit $ do
                 
-                cpuRun mem regs isDebug
+                newDebugState <- if isDebug
+                    then runInstructionsDebug mem regs 10000 debugState
+                    else do
+                        runInstructions mem regs 10000
+                        return debugState -- value of debugState is not relevent here as not debugging
 
                 frame <- getMode7Frame mem
                 renderMode7Frame sdlCtxt m7Font frame
@@ -62,9 +63,10 @@ main = do
                     irq mem regs
 
                 --threadDelay (1000000 `div` targetHz)
-                mainLoop
+                mainLoop newDebugState
 
-    mainLoop
+    when isDebug $ debuggerStart mem regs
+    mainLoop (DebugState [] 0 True)
     endVideo sdlCtxt
 
 -- temp

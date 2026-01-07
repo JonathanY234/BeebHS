@@ -12,8 +12,6 @@ import Data.IORef (IORef, readIORef, modifyIORef', writeIORef)
 import Control.Monad (unless, when)
 import qualified Data.Vector as IBVector
 
-import Control.Monad (forM)
-
 cpuInit :: IO (Memory, CPURegs)
 cpuInit = do
     mem <- initMemory 0xFF
@@ -30,19 +28,17 @@ cpuInit = do
 
     return (mem, regs)
 
-cpuRun :: Memory -> CPURegs -> Bool -> IO ()
-cpuRun mem regs isDebug = do
+-- cpuRun :: Memory -> CPURegs -> Bool -> IO ()
+-- cpuRun mem regs isDebug = do
 
-    if isDebug
-        -- then runInstructionsDebug mem regs 5700
-        then runInstructionsDebug mem regs 1000000
-        -- else runInstructions mem regs 5700
-        else runInstructions mem regs 1000000
+--     if isDebug
+--         -- then runInstructionsDebug mem regs 5700
+--         then runInstructionsDebug mem regs 1000000
+--         -- else runInstructions mem regs 5700
+--         else runInstructions mem regs 1000000
 
-    --temp 
-    --getMode7Frame mem
-
-
+--     --temp 
+--     --getMode7Frame mem
 
 getInitialPC :: Memory -> IO Word16
 getInitialPC mem = do
@@ -67,33 +63,58 @@ runInstructions mem regs count = loop 0
                 instr mem regs
                 loop (n+1)
 
-runInstructionsDebug :: Memory -> CPURegs -> Int -> IO ()
-runInstructionsDebug mem regs count = loop 0 (DebugState [] False)
+debuggerStart :: Memory -> CPURegs -> IO ()
+debuggerStart mem regs = do
+    pcVal <- readIORef (pc regs)
+    operand1 <- readMemory mem (pcVal+1)
+    operand2 <- readMemory mem (pcVal+2)
+    currentInstructionOpcode <- readMemory mem pcVal
+
+    putStr $ debuggerLineOutput pcVal currentInstructionOpcode operand1 operand2
+
+
+runInstructionsDebug :: Memory -> CPURegs -> Int -> DebugState -> IO DebugState
+runInstructionsDebug mem regs count = loop 0 --dbs
     where
-        loop n debugState@(DebugState bps continueMode)
-            | n >= count = return ()
+        loop :: Int -> DebugState -> IO DebugState
+        loop n debugState@(DebugState _ _ pause)
+            | n >= count = return debugState
             | otherwise = do
-                pcVal <- readIORef (pc regs)
 
-                currentInstructionOpcode <- readMemory mem pcVal
-                let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
-                operand1 <- readMemory mem (pcVal+1)
-                operand2 <- readMemory mem (pcVal+2)
-
-
-                putStr $ debuggerLineOutput pcVal currentInstructionOpcode operand1 operand2
-
-                let stop = not continueMode || (pcVal `elem` bps)
-
-                newDebugState <- if stop
+                -- get user input
+                newDebugState <- if pause
                     then handleInput mem regs debugState
                     else do
                         putStrLn ""
                         return debugState
 
+                -- run current instruction
+                pcVal <- readIORef (pc regs)
+                currentInstructionOpcode <- readMemory mem pcVal
+                let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
                 instr mem regs
+
+                -- next instruction
+                nextPcVal <- readIORef (pc regs)
+                operand1 <- readMemory mem (nextPcVal+1)
+                operand2 <- readMemory mem (nextPcVal+2)
+                nextInstructionOpcode <- readMemory mem nextPcVal
+
+                -- show next instruction
+                putStr $ debuggerLineOutput nextPcVal nextInstructionOpcode operand1 operand2
                 
-                loop (n+1) newDebugState
+                -- decide if need to stop
+                let bps      = breakpoints newDebugState
+                    stepsRem = stepsRemaining newDebugState
+                    newStepsRem = if stepsRem == -1 -- treat -1 as meaning continueMode -- if stepsRem == 0 this will be caught earlier
+                                            then stepsRem
+                                            else stepsRem -1
+                    
+                if newStepsRem == 0 || (nextPcVal `elem` bps)
+                    then return newDebugState { pause = True, stepsRemaining = newStepsRem } -- yield to mainLoop
+                    else loop (n+1) newDebugState { pause = False, stepsRemaining = newStepsRem }
+
+
 
 -- __________Memory__________
 -- Memory woz ere
