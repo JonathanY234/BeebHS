@@ -19,7 +19,7 @@ screenHeight :: CInt
 screenHeight = 500
 
 borderSize :: CInt
-borderSize = 40
+borderSize = 28
 
 initVideo :: IO SDLContext
 initVideo = do

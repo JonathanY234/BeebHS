@@ -7,10 +7,11 @@ import System.IO (hFlush, stdout)
 import Data.IORef (readIORef)
 import Data.Word (Word8, Word16)
 import qualified Data.Map as M
-import Control.Monad (forM_, when)
-import Numeric (showHex, readHex)
+import Control.Monad (forM_)
+import Numeric (readHex)
 import Data.Char (toUpper)
 import Data.Bits (Bits(testBit))
+import Data.List (delete)
 
 showMemoryPage :: Memory -> Word8 -> IO ()
 showMemoryPage memory pageNum = do
@@ -113,21 +114,32 @@ opcodeNames = M.fromList
     (0xF6, "Zeropagex INC"),    (0xF8, "Implied SED"),    (0xF9, "Absolutey SBC"),
     (0xFD, "Absolutex SBC"),    (0xFE, "Absolutex INC")
     ]
--- C, Continue
--- S, Step
--- B, Breakpoint
--- M, show memory page
+
+debuggerHelpMessage :: String
+debuggerHelpMessage = 
+    "CONTINUE           (c)  --run emulator\n\
+    \STEP n             (s)  --run for n instructions\n\
+    \BREAKPOINT n       (b)  --set breakpoint at n\n\
+    \BREAKPOINTREMOVE n (br) --remove breakpoint at n\n\
+    \BREAKPOINTSHOW n   (bs) --show all breakpoints\n\
+    \MEMORY n           (m)  --show memory page containing n\n\
+    \REGISTERS          (r)  --show CPU registers\n\
+    \HELP               (h)  --show this message"
 
 data DebugState = DebugState { breakpoints :: [Word16],  stepsRemaining :: Int, pause :: Bool}
 
 -- processing input is pain
 handleInput :: Memory -> CPURegs -> DebugState -> IO DebugState
-handleInput mem regs debugState@(DebugState bps stepsRemaining pause) = do
+handleInput mem regs debugState@(DebugState bps _ _) = do
     (command, value) <- getValidInput -- assumes valid input recieved from this function
     case command of
-        "C" -> return (DebugState bps (-1) False)
-        "S" -> return (DebugState bps (fromIntegral value) True)
-        "B" -> handleInput mem regs (DebugState (fromIntegral value:bps) stepsRemaining pause)
+        "C" -> return debugState { stepsRemaining = -1 }
+        "S" -> return debugState { stepsRemaining = fromIntegral value }
+        "B" -> handleInput mem regs debugState { breakpoints = fromIntegral value:bps }
+        "BR" -> handleInput mem regs debugState { breakpoints = delete (fromIntegral value) bps }
+        "BS" -> do
+            putStrLn $ unwords $ map showHexX bps
+            handleInput mem regs debugState
         "R" -> do
             printRegs regs
             handleInput mem regs debugState
@@ -135,6 +147,7 @@ handleInput mem regs debugState@(DebugState bps stepsRemaining pause) = do
             let pageIndex = fromIntegral (value `div` 256)
             showMemoryPage mem pageIndex
             handleInput mem regs debugState
+        "H" -> putStrLn debuggerHelpMessage >> handleInput mem regs debugState
         _ -> do
             putStrLn "Invalid command, this should not be reachable should have been handled by getValidInput"
             return debugState
@@ -161,12 +174,15 @@ getValidInput = do
                     _ -> Nothing
 
     let commandShort = case command of
-            "CONTINUE"   -> "C"
-            "STEP"       -> "S"
-            "BREAKPOINT" -> "B"
-            "MEMORY"     -> "M"
-            "REGISTERS"  -> "R"
-            _            -> command
+            "CONTINUE"          -> "C"
+            "STEP"              -> "S"
+            "BREAKPOINT"        -> "B"
+            "BREAKPOINTREMOVE"  -> "BR"
+            "BREAKPOINTSHOW"    -> "BS"
+            "MEMORY"            -> "M"
+            "REGISTERS"         -> "R"
+            "HELP"              -> "H"
+            _                   -> command
 
     case commandShort of
         "C" -> return (commandShort, 0)
@@ -189,6 +205,14 @@ getValidInput = do
                 putStrLn "Value out of range" >> getValidInput
             else
                 return (commandShort, value)
+        "BR" ->
+            if numErr then
+                putStrLn "Not a valid number" >> getValidInput
+            else if value > 0xFFFF then
+                putStrLn "Value out of range" >> getValidInput
+            else
+                return (commandShort, value)
+        "BS" -> return (commandShort, 0)
         "M" ->
             if numErr then
                 putStrLn "Not a valid number" >> getValidInput
@@ -196,6 +220,7 @@ getValidInput = do
                 putStrLn "Value out of range" >> getValidInput
             else
                 return (commandShort, value)
+        "H" -> return (commandShort, 0)
         _ ->
             putStrLn "Invalid command, try again." >> getValidInput
 
