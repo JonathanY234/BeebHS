@@ -85,7 +85,7 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                 newDebugState <- if pause
                     then handleInput mem regs debugState
                     else do
-                        putStrLn ""
+                        --putStr "H"
                         return debugState
 
                 -- run current instruction
@@ -99,9 +99,6 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                 operand1 <- readMemory mem (nextPcVal+1)
                 operand2 <- readMemory mem (nextPcVal+2)
                 nextInstructionOpcode <- readMemory mem nextPcVal
-
-                -- show next instruction
-                putStr $ debuggerLineOutput nextPcVal nextInstructionOpcode operand1 operand2
                 
                 -- decide if need to stop
                 let bps      = breakpoints newDebugState
@@ -109,10 +106,12 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                     newStepsRem = if stepsRem == -1 -- treat -1 as meaning continueMode -- if stepsRem == 0 this will be caught earlier
                                             then stepsRem
                                             else stepsRem -1
-                    
-                if newStepsRem == 0 || (nextPcVal `elem` bps)
-                    then return newDebugState { pause = True, stepsRemaining = newStepsRem } -- yield to mainLoop
-                    else loop (n+1) newDebugState { pause = False, stepsRemaining = newStepsRem }
+
+                if newStepsRem == 0 || (nextPcVal `elem` bps) then do
+                    -- show instruction details
+                    putStr $ debuggerLineOutput nextPcVal nextInstructionOpcode operand1 operand2
+                    return newDebugState { pause = True, stepsRemaining = newStepsRem } -- yield to mainLoop
+                else loop (n+1) newDebugState { pause = False, stepsRemaining = newStepsRem }
 
 
 

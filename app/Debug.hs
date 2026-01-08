@@ -123,11 +123,11 @@ data DebugState = DebugState { breakpoints :: [Word16],  stepsRemaining :: Int, 
 -- processing input is pain
 handleInput :: Memory -> CPURegs -> DebugState -> IO DebugState
 handleInput mem regs debugState@(DebugState bps stepsRemaining pause) = do
-    (command, value) <- getValidInput
+    (command, value) <- getValidInput -- assumes valid input recieved from this function
     case command of
         "C" -> return (DebugState bps (-1) False)
         "S" -> return (DebugState bps (fromIntegral value) True)
-        "B" -> handleInput mem regs (DebugState (value:bps) stepsRemaining pause)
+        "B" -> handleInput mem regs (DebugState (fromIntegral value:bps) stepsRemaining pause)
         "R" -> do
             printRegs regs
             handleInput mem regs debugState
@@ -140,14 +140,14 @@ handleInput mem regs debugState@(DebugState bps stepsRemaining pause) = do
             return debugState
 
 
-getValidInput :: IO (String, Word16)
+getValidInput :: IO (String, Int)
 getValidInput = do
     putStr ">"
     hFlush stdout
 
-    input <- words <$> getLine
+    rawInput <- words <$> getLine
 
-    (command, value :: Word16, numErr) <- case input of
+    (command, value :: Int, numErr) <- case rawInput of
         [] -> return ("", 0, True)
         [cmd] -> return (map toUpper cmd, 2, True)
         (cmd:val:_) ->
@@ -155,9 +155,9 @@ getValidInput = do
                 Just n  -> return (map toUpper cmd, n, False)
                 Nothing -> return (map toUpper cmd, 2, True)
             where
-                parseHex :: String -> Maybe Word16
+                parseHex :: String -> Maybe Int
                 parseHex s = case readHex s of
-                    [(n, "")] | n >= 0 && n <= 0xFFFF -> Just (fromIntegral n)
+                    [(n, "")] | n >= 0 -> Just n
                     _ -> Nothing
 
     let commandShort = case command of
@@ -172,25 +172,32 @@ getValidInput = do
         "C" -> return (commandShort, 0)
         "R" -> return (commandShort, 0)
         
-        "S" -> case (numErr, value) of
-            (_, 0)     -> putStrLn "Cannot step 0" >> getValidInput
-            (True, _)  -> return (commandShort, 1)
-            (False, _) -> return (commandShort, value)
+        "S" ->
+            if value == 0 then
+                putStrLn "Cannot step 0" >> getValidInput
+            else if numErr then
+                case rawInput of
+                    [_] -> return (commandShort, 1)
+                    _   -> putStrLn "Not a valid number" >> getValidInput
+            else
+                return (commandShort, read (rawInput !! 1)) -- messy but works, we need decimal value and know that input is already checked valid
+                
         "B" ->
-            if numErr
-                then do
-                    putStrLn "Not a valid number"
-                    getValidInput
-                else return (commandShort, value)
-        "M" -> do
-            if numErr
-                then do
-                    putStrLn "Not a valid number"
-                    getValidInput
-                else return (commandShort, value)
-        _ -> do
-            putStrLn "Invalid command, try again."
-            getValidInput
+            if numErr then
+                putStrLn "Not a valid number" >> getValidInput
+            else if value > 0xFFFF then
+                putStrLn "Value out of range" >> getValidInput
+            else
+                return (commandShort, value)
+        "M" ->
+            if numErr then
+                putStrLn "Not a valid number" >> getValidInput
+            else if value > 0xFFFF then
+                putStrLn "Value out of range" >> getValidInput
+            else
+                return (commandShort, value)
+        _ ->
+            putStrLn "Invalid command, try again." >> getValidInput
 
 -- printing nice looking ouput is pain
 debuggerLineOutput :: Word16 -> Word8 -> Word8 -> Word8 -> String
