@@ -10,15 +10,14 @@ import qualified Data.Vector as IBVector
 import Data.Word (Word16, Word8)
 import Data.IORef (readIORef)
 import Data.List (intercalate)
-import Control.Monad (unless, forM, forM_)
+import Control.Monad (unless, forM, forM_, when)
 import qualified Data.Map as M
 
 
 import CPU6502 ( opcodeTable)
 import Memory ( Memory, initMemory, writeMemory, readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters)
-import Debug (showMemoryPage, opcodeNames, showStatusReg, printRegs)
+import Debug (opcodeNames, showStatusReg, printRegs)
 import Utilities (showHexX)
-import GHC.Integer (popCountInteger)
 import Numeric (showHex)
 
 
@@ -135,7 +134,7 @@ isFinalRegsAndMemSameAsExpected regs mem CpuState{pcState=fPc, accumulatorState=
     return (regsMatch && memMatch)
 
 run1Test :: ATest -> IO Bool
-run1Test ATest{name=name, initial=initial, final=final, cycles=cycles} = do
+run1Test ATest{name=name, initial=initial, final=final, cycles=_} = do
 
     (regs, mem) <- loadInitialRegistersAndMem initial
 
@@ -147,7 +146,9 @@ run1Test ATest{name=name, initial=initial, final=final, cycles=cycles} = do
 
     result <- isFinalRegsAndMemSameAsExpected regs mem final
 
-    unless result $ do
+    let verbose = False
+
+    when (not result && verbose) $ do
         putStrLn $ "Failed Test: " ++ name
         putStrLn $ "Initial : " ++ show initial
         putStrLn $ "Expected: " ++ show final
@@ -161,27 +162,26 @@ run1Test ATest{name=name, initial=initial, final=final, cycles=cycles} = do
 
 runTests :: IO ()
 runTests = do
-    -- results <- forM (M.toList opcodeNames) $ \(opcode, name) -> do
-    --     putStrLn $ "Test: " ++ name
-    --     let fileCode = if length (showHex opcode "") == 2
-    --         then showHex opcode ""
-    --         else "0" ++ showHex opcode ""
+    results <- forM (M.toList opcodeNames) $ \(opcode, name) -> do
+        putStrLn $ "Test: " ++ name
+        let fileCode = if length (showHex opcode "") == 2
+            then showHex opcode ""
+            else "0" ++ showHex opcode ""
 
-    --     passFail <- runTestsFromFile fileCode
-    --     return (name, passFail)
+        passFail <- runTestsFromFile fileCode
+        return (name, passFail)
 
-    -- let passes = length $ filter snd results
-    --     total  = length results
+    let passes = length $ filter snd results
+        total  = length results
 
-    -- putStrLn "_________________"
-    -- forM_ results $ \(name, passed) ->
-    --     unless passed $ putStrLn $ name ++ " Failed"
+    putStrLn "_________________"
+    forM_ results $ \(name, passed) ->
+        unless passed $ putStrLn $ name ++ " Failed"
 
+    putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files"
 
-    -- putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files"
-
-    result <- runTestsFromFile "00"
-    print result
+    -- result <- runTestsFromFile "0e"
+    -- print result
         
 
 runTestsFromFile :: String -> IO Bool

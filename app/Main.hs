@@ -66,7 +66,7 @@ main = do
                 mainLoop newDebugState
 
     when isDebug $ debuggerStart mem regs
-    mainLoop (DebugState [] 0 True)
+    mainLoop (DebugState [] 0 True False)
     endVideo sdlCtxt
 
 -- temp

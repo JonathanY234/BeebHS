@@ -6,7 +6,6 @@ import Data.Vector qualified as IBVector
 import Data.Word (Word8)
 import Foreign.C.Types (CInt)
 import Foreign.Storable (pokeByteOff)
-import KeyboardInput (updateKeyboardMatrix)
 import SDL qualified
 import SDL.Vect (V4 (..))
 

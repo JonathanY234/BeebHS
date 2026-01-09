@@ -33,8 +33,8 @@ readMemory mem address = do
                     return $ temp .&. complement 0x80  -- bit 7 high
                 else do 
                     putStrLn $ "FE4F read false path: final : " ++ show (temp .|. 0x80 )
-                    --return $ temp .|. 0x80             -- bit 7 low
-                    return 0
+                    return $ temp .|. 0x80             -- bit 7 low
+                    --return 0
         else MUVector.read (m mem) (fromIntegral address)
 
 keyPressed :: Memory -> Int -> IO Bool

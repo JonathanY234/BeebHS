@@ -3,7 +3,6 @@ module CPU6502 where
 import Memory(initMemory, readMemory, writeMemory, Memory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters) 
 import LoadRom (loadRom)
 import Debug ( DebugState(..), handleInput, debuggerLineOutput)
-import Utilities (showHexF)
 
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
@@ -28,18 +27,6 @@ cpuInit = do
 
     return (mem, regs)
 
--- cpuRun :: Memory -> CPURegs -> Bool -> IO ()
--- cpuRun mem regs isDebug = do
-
---     if isDebug
---         -- then runInstructionsDebug mem regs 5700
---         then runInstructionsDebug mem regs 1000000
---         -- else runInstructions mem regs 5700
---         else runInstructions mem regs 1000000
-
---     --temp 
---     --getMode7Frame mem
-
 getInitialPC :: Memory -> IO Word16
 getInitialPC mem = do
     let resetVector :: Word16
@@ -51,7 +38,7 @@ getInitialPC mem = do
 
 
 runInstructions :: Memory -> CPURegs -> Int -> IO ()
-runInstructions mem regs count = loop 0
+runInstructions mem regs count = loop 0 --replicateM might be cleaner here
     where
         loop n
             | n >= count = return ()
@@ -77,16 +64,14 @@ runInstructionsDebug :: Memory -> CPURegs -> Int -> DebugState -> IO DebugState
 runInstructionsDebug mem regs count = loop 0 --dbs
     where
         loop :: Int -> DebugState -> IO DebugState
-        loop n debugState@(DebugState _ _ pause)
+        loop n debugState@(DebugState _ _ pause _)
             | n >= count = return debugState
             | otherwise = do
 
                 -- get user input
                 newDebugState <- if pause
                     then handleInput mem regs debugState
-                    else do
-                        --putStr "H"
-                        return debugState
+                    else return debugState
 
                 -- run current instruction
                 pcVal <- readIORef (pc regs)
@@ -158,75 +143,75 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x00 = brk undefined
         assign 0x01 = indirectX ora
         assign 0x05 = zeropage ora
-        assign 0x06 = zeropage aslM
+        assign 0x06 = zeropage asl
         assign 0x08 = implied php
         assign 0x09 = immediate ora
-        assign 0x0A = implied aslA
+        assign 0x0A = useAcc asl
         assign 0x0D = absolute ora
-        assign 0x0E = absolute aslM
+        assign 0x0E = absolute asl
         assign 0x10 = relative bpl
         assign 0x11 = indirectY ora
         assign 0x15 = zeropageX ora
-        assign 0x16 = zeropageX aslM
+        assign 0x16 = zeropageX asl
         assign 0x18 = implied clc
         assign 0x19 = absoluteY ora
         assign 0x1D = absoluteX ora
-        assign 0x1E = absoluteX aslM
+        assign 0x1E = absoluteX asl
         assign 0x20 = absolute jsr
         assign 0x21 = indirectX and_
         assign 0x24 = zeropage bit
         assign 0x25 = zeropage and_
-        assign 0x26 = zeropage rolM
+        assign 0x26 = zeropage rol
         assign 0x28 = implied plp
         assign 0x29 = immediate and_
-        assign 0x2A = implied rolA
+        assign 0x2A = useAcc rol
         assign 0x2C = absolute bit
         assign 0x2D = absolute and_
-        assign 0x2E = absolute rolM
+        assign 0x2E = absolute rol
         assign 0x30 = relative bmi
         assign 0x31 = indirectY and_
         assign 0x35 = zeropageX and_
-        assign 0x36 = zeropageX rolM
+        assign 0x36 = zeropageX rol
         assign 0x38 = implied sec
         assign 0x39 = absoluteY and_
         assign 0x3D = absoluteX and_
-        assign 0x3E = absoluteX rolM
+        assign 0x3E = absoluteX rol
         assign 0x40 = implied rti
         assign 0x41 = indirectX eor
         assign 0x45 = zeropage eor
-        assign 0x46 = zeropage lsrM
+        assign 0x46 = zeropage lsr
         assign 0x48 = implied pha
         assign 0x49 = immediate eor
-        assign 0x4A = implied lsrA
+        assign 0x4A = useAcc lsr
         assign 0x4C = absolute jmp
         assign 0x4D = absolute eor
-        assign 0x4E = absolute lsrM
+        assign 0x4E = absolute lsr
         assign 0x50 = relative bvc
         assign 0x51 = indirectY eor
         assign 0x55 = zeropageX eor
-        assign 0x56 = zeropageX lsrM
+        assign 0x56 = zeropageX lsr
         assign 0x58 = implied cli
         assign 0x59 = absoluteY eor
         assign 0x5D = absoluteX eor
-        assign 0x5E = absoluteX lsrM
+        assign 0x5E = absoluteX lsr
         assign 0x60 = implied rts
         assign 0x61 = indirectX adc
         assign 0x65 = zeropage adc
-        assign 0x66 = zeropage rorM
+        assign 0x66 = zeropage ror
         assign 0x68 = implied pla
         assign 0x69 = immediate adc
-        assign 0x6A = implied rorA
+        assign 0x6A = useAcc ror
         assign 0x6C = indirect jmp
         assign 0x6D = absolute adc
-        assign 0x6E = absolute rorM
+        assign 0x6E = absolute ror
         assign 0x70 = relative bvs
         assign 0x71 = indirectY adc
         assign 0x75 = zeropageX adc
-        assign 0x76 = zeropageX rorM
+        assign 0x76 = zeropageX ror
         assign 0x78 = implied sei
         assign 0x79 = absoluteY adc
         assign 0x7D = absoluteX adc
-        assign 0x7E = absoluteX rorM
+        assign 0x7E = absoluteX ror
         assign 0xB0 = relative bcs
         assign 0x81 = indirectX sta
         assign 0x84 = zeropage sty
@@ -455,7 +440,12 @@ indirect instr mem regs = do
     writeIORef (pc regs) (pcVal + 3)
     instr address mem regs False
 
---accumulator ::
+-- useAcc       use the value in the accumulator instead
+useAcc :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
+useAcc instr mem regs = do
+    pcVal <- readIORef (pc regs)
+    writeIORef (pc regs) (pcVal + 1)
+    instr 0 mem regs True
 
 -- implied      No operands because memory is not used (actually it seems it is)
 implied :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
@@ -759,92 +749,70 @@ ora address mem regs isImmediate = do
 -- %%% Shift and Rotate %%%
 
 -- Shift Left One Bit (Memory or Accumulator)
-aslA :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-aslA _ _ regs _ = do
-    -- asl has 'accumulator mode' this implementation treats that as a seperate instruction
-    -- where aslA is only used in implied mode. and aslM is the 'normal version'
-    acc <- readIORef (accumulator regs)
-    
-    let result = acc `shiftL` 1
-    writeIORef (accumulator regs) result
 
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
-    srWriteCarry (statusReg regs) (testBit acc 7)
-aslM :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-aslM address mem regs _ = do
-    inputVal <- readMemory mem address
+asl :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+asl address mem regs accNotMem = do
+    inputVal <- if accNotMem
+        then readIORef (accumulator regs)
+        else readMemory mem address
+
     let result = inputVal `shiftL` 1
-    writeMemory mem address result
+    if accNotMem
+        then writeIORef (accumulator regs) result
+        else writeMemory mem address result
 
     srWriteZero (statusReg regs) (result == 0)
     srWriteNegative (statusReg regs) (testBit result 7)
     srWriteCarry (statusReg regs) (testBit inputVal 7)
 
 -- Shift Right One Bit (Memory or Accumulator)
-lsrA :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-lsrA _ _ regs _ = do
-    acc <- readIORef (accumulator regs)
-    
-    let result = acc `shiftR` 1
-    writeIORef (accumulator regs) result
 
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) False
-    srWriteCarry (statusReg regs) (testBit acc 0)
-lsrM :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-lsrM address mem regs _ = do
-    inputVal <- readMemory mem address
+lsr :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+lsr address mem regs accNotMem = do
+    inputVal <- if accNotMem
+        then readIORef (accumulator regs)
+        else readMemory mem address
+
     let result = inputVal `shiftR` 1
-    writeMemory mem address result
+    if accNotMem
+        then writeIORef (accumulator regs) result
+        else writeMemory mem address result
 
     srWriteZero (statusReg regs) (result == 0)
     srWriteNegative (statusReg regs) False
     srWriteCarry (statusReg regs) (testBit inputVal 0)
 
 -- Rotate One Bit Left (Memory or Accumulator)
-rolA :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-rolA _ _ regs _ = do
-    acc <- readIORef (accumulator regs)
-    oldCarry <- srReadCarry (statusReg regs)
-    let carryOut = testBit acc 7
-        result = (acc `shiftL` 1) .|. (if oldCarry then 1 else 0)
-    writeIORef (accumulator regs) result
+rol :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+rol address mem regs accNotMem = do
+    inputVal <- if accNotMem
+        then readIORef (accumulator regs)
+        else readMemory mem address
 
-    srWriteCarry (statusReg regs) carryOut
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
-rolM :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-rolM address mem regs _ = do
-    memVal <- readMemory mem address
     oldCarry <- srReadCarry (statusReg regs)
-    let carryOut = testBit memVal 7
-        result = (memVal `shiftL` 1) .|. (if oldCarry then 1 else 0)
-    writeMemory mem address result
+    let carryOut = testBit inputVal 7
+        result = (inputVal `shiftL` 1) .|. (if oldCarry then 1 else 0)
+    if accNotMem
+        then writeIORef (accumulator regs) result
+        else writeMemory mem address result
 
     srWriteCarry (statusReg regs) carryOut
     srWriteZero (statusReg regs) (result == 0)
     srWriteNegative (statusReg regs) (testBit result 7)
 
 -- Rotate One Bit Right (Memory or Accumulator)
-rorA :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-rorA _ _ regs _ = do
-    acc <- readIORef (accumulator regs)
-    oldCarry <- srReadCarry (statusReg regs)
-    let carryOut = testBit acc 0
-        result = (acc `shiftR` 1) .|. (if oldCarry then 128 else 0)
-    writeIORef (accumulator regs) result
+ror :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+ror address mem regs accNotMem = do
+    inputVal <- if accNotMem
+        then readIORef (accumulator regs)
+        else readMemory mem address
 
-    srWriteCarry (statusReg regs) carryOut
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
-rorM :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-rorM address mem regs _ = do
-    memVal <- readMemory mem address
     oldCarry <- srReadCarry (statusReg regs)
-    let carryOut = testBit memVal 0
-        result = (memVal `shiftR` 1) .|. (if oldCarry then 128 else 0)
-    writeMemory mem address result
+    let carryOut = testBit inputVal 0
+        result = (inputVal `shiftR` 1) .|. (if oldCarry then 128 else 0)
+    if accNotMem
+        then writeIORef (accumulator regs) result
+        else writeMemory mem address result
 
     srWriteCarry (statusReg regs) carryOut
     srWriteZero (statusReg regs) (result == 0)
