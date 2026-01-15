@@ -13,7 +13,7 @@ import System.Exit (exitSuccess)
 
 --temp
 import Data.Word (Word16, Word8)
-import Memory (Memory, readMemory, writeMemory, writeMemory)
+import MemoryRegisters (Memory, readMemory, writeMemory)
 import Control.Monad (forM)
 import KeyboardInput (updateKeyboardMatrix)
 --endtemp
@@ -26,7 +26,7 @@ main = do
             exitSuccess
     let isDebug = "-debug" `elem` args
     
-    -- initialisation 
+    -- initialisation
     --m7Font <- loadMode7Font "roms/original.fnt" 24
     m7Font <- loadMode7Font "roms/basicsdl.fnt" 28
     let (targetHz :: Int) = 50
@@ -66,7 +66,7 @@ main = do
                 mainLoop newDebugState
 
     when isDebug $ debuggerStart mem regs
-    mainLoop (DebugState [] 0 True False)
+    mainLoop (DebugState [] 0 True 0)
     endVideo sdlCtxt
 
 -- temp

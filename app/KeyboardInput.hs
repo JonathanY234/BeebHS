@@ -2,7 +2,7 @@ module KeyboardInput where
 
 import Data.IORef (readIORef, writeIORef)
 import Data.Vector qualified as IBVector
-import Memory (Memory, kbMatrixCols, kbMatrixRows, keyboardMatrix, kbMatrixCols)
+import MemoryRegisters (Memory, kbMatrixCols, kbMatrixRows, keyboardMatrix, kbMatrixCols)
 import SDL qualified
 import Control.Monad (forM_, when)
 

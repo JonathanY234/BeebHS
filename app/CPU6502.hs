@@ -1,8 +1,8 @@
 module CPU6502 where
 
-import Memory(initMemory, readMemory, writeMemory, Memory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters) 
+import MemoryRegisters (initMemory, readMemory, writeMemory, Memory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters) 
 import LoadRom (loadRom)
-import Debug ( DebugState(..), handleInput, debuggerLineOutput)
+import Debug ( DebugState(..), handleInput, debuggerLineOutput, manageSimulatedKeyPress)
 
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
@@ -10,6 +10,7 @@ import Data.Bits ( Bits((.|.), testBit, complement, (.&.), shiftL, shiftR, xor))
 import Data.IORef (IORef, readIORef, modifyIORef', writeIORef)
 import Control.Monad (unless, when)
 import qualified Data.Vector as IBVector
+import Utilities (showHexX)
 
 cpuInit :: IO (Memory, CPURegs)
 cpuInit = do
@@ -17,7 +18,7 @@ cpuInit = do
     regs <- initRegisters 0 0 0 0 0xFF 0x20
 
     -- This is the 'machine operating system' in the upper quarter of address space
-    loadRom "roms/jonny_mem_dump_os_area_only" 0xC000 mem
+    loadRom "roms/os12_bemdump.rom" 0xC000 mem
     -- Load the correct basic rom to the sideways rom area
     loadRom "roms/basic2.rom" 0x8000 mem
 
@@ -70,8 +71,19 @@ runInstructionsDebug mem regs count = loop 0 --dbs
 
                 -- get user input
                 newDebugState <- if pause
-                    then handleInput mem regs debugState
+                    then do 
+                        handleInput mem regs debugState
+
                     else return debugState
+
+                let simKP = simulatedKeyPress newDebugState
+
+                --print simKP
+
+                when (simKP == 2) $ manageSimulatedKeyPress mem
+                when (simKP == 1) $ do 
+                    manageSimulatedKeyPress mem >> irq mem regs
+                    putStrLn "Hi i did IRQ"
 
                 -- run current instruction
                 pcVal <- readIORef (pc regs)
@@ -92,11 +104,16 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                                             then stepsRem
                                             else stepsRem -1
 
+                --handle simuated keypress (I hate this)
+                    newSimKP = if simKP == 0
+                        then 0
+                        else 2
+
                 if newStepsRem == 0 || (nextPcVal `elem` bps) then do
                     -- show instruction details
                     putStr $ debuggerLineOutput nextPcVal nextInstructionOpcode operand1 operand2
-                    return newDebugState { pause = True, stepsRemaining = newStepsRem } -- yield to mainLoop
-                else loop (n+1) newDebugState { pause = False, stepsRemaining = newStepsRem }
+                    return newDebugState { pause = True, stepsRemaining = newStepsRem, simulatedKeyPress = newSimKP } -- yield to mainLoop
+                else loop (n+1) newDebugState { pause = False, stepsRemaining = newStepsRem, simulatedKeyPress = newSimKP }
 
 
 
@@ -1079,8 +1096,9 @@ irqVector :: Word16
 irqVector = 0xFFFE
 
 -- IRQ interrupt
-irq :: Memory -> CPURegs -> IO ()
-irq mem regs = do
+irqShared :: Memory -> CPURegs -> IO ()
+irqShared mem regs = do
+    print "Hi I from IRQ"
     pCounter <- readIORef (pc regs)
 
     let returnAddress = pCounter
@@ -1103,13 +1121,14 @@ irq mem regs = do
     let jumpAddress :: Word16
         jumpAddress = (fromIntegral highByte2 :: Word16) `shiftL` 8 + (fromIntegral lowByte2 :: Word16)
 
+    putStrLn $ "I jump too: " ++ showHexX jumpAddress
 
     writeIORef (pc regs) jumpAddress
 
-
--- brk :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
--- brk _ mem regs _ =
---     irq mem regs True
+irq :: Memory -> CPURegs -> IO ()
+irq mem regs = do
+    irqShared mem regs
+    srWriteBreak (statusReg regs) True
 
 -- break: Software IRQ
 brk :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
@@ -1117,7 +1136,8 @@ brk _ mem regs = do
 
     pcVal <- readIORef (pc regs)
     writeIORef (pc regs) (pcVal + 2)
-    irq mem regs
+    irqShared mem regs
+    srWriteBreak (statusReg regs) True
 
 -- Return From Interrupt
 rti :: Word16 -> Memory -> CPURegs -> Bool -> IO ()

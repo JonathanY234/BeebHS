@@ -1,4 +1,4 @@
-module Memory where
+module MemoryRegisters where
 
 import Data.Word (Word16, Word8)
 import Data.IORef (IORef, newIORef, readIORef)

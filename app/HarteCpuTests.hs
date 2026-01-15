@@ -15,11 +15,10 @@ import qualified Data.Map as M
 
 
 import CPU6502 ( opcodeTable)
-import Memory ( Memory, initMemory, writeMemory, readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters)
+import MemoryRegisters ( Memory, initMemory, writeMemory, readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters)
 import Debug (opcodeNames, showStatusReg, printRegs)
 import Utilities (showHexX)
 import Numeric (showHex)
-
 
 
 type RamEntry = (Word16, Word8)

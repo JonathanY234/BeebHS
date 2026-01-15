@@ -1,10 +1,10 @@
 module Debug where
 
-import Memory (Memory, readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg))
+import MemoryRegisters (Memory (keyboardMatrix), readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), kbMatrixCols, kbMatrixRows)
 import Utilities (showHexX, showHexF)
 
 import System.IO (hFlush, stdout)
-import Data.IORef (readIORef)
+import Data.IORef (readIORef, writeIORef)
 import Data.Word (Word8, Word16)
 import qualified Data.Map as M
 import Control.Monad (forM_)
@@ -12,6 +12,7 @@ import Numeric (readHex)
 import Data.Char (toUpper)
 import Data.Bits (Bits(testBit))
 import Data.List (delete)
+import qualified Data.Vector as IBVector
 
 showMemoryPage :: Memory -> Word8 -> IO ()
 showMemoryPage memory pageNum = do
@@ -123,13 +124,14 @@ debuggerHelpMessage =
     \BREAKPOINTSHOW n   (bs) --show all breakpoints\n\
     \MEMORY n           (m)  --show memory page containing n\n\
     \REGISTERS          (r)  --show CPU registers\n\
+    \PASTEQ             (pq) --simulate Q key pressed\n\
     \HELP               (h)  --show this message"
 
-data DebugState = DebugState { breakpoints :: [Word16],  stepsRemaining :: Int, pause :: Bool, simulatedKeypress :: Bool}
+data DebugState = DebugState { breakpoints :: [Word16],  stepsRemaining :: Int, pause :: Bool, simulatedKeyPress :: Int}
 
 -- processing input is pain
 handleInput :: Memory -> CPURegs -> DebugState -> IO DebugState
-handleInput mem regs debugState@(DebugState bps _ _ _) = do
+handleInput mem regs debugState@(DebugState bps _ _ simKP) = do
     (command, value) <- getValidInput -- assumes valid input recieved from this function
     case command of
         "C" -> return debugState { stepsRemaining = -1 }
@@ -146,6 +148,12 @@ handleInput mem regs debugState@(DebugState bps _ _ _) = do
             let pageIndex = fromIntegral (value `div` 256)
             showMemoryPage mem pageIndex
             handleInput mem regs debugState
+        "PQ" -> do
+            print "hi"
+            handleInput mem regs debugState { simulatedKeyPress = 1 }
+            -- if simKP == 0
+            --     then handleInput mem regs debugState { simulatedKeyPress = 1 } -- fix
+            --     else handleInput mem regs debugState { simulatedKeyPress = 2 }
         "H" -> putStrLn debuggerHelpMessage >> handleInput mem regs debugState
         _ -> do
             putStrLn "Invalid command, this should not be reachable should have been handled by getValidInput"
@@ -180,6 +188,7 @@ getValidInput = do
             "BREAKPOINTSHOW"    -> "BS"
             "MEMORY"            -> "M"
             "REGISTERS"         -> "R"
+            "PASTEQ"            -> "PQ"
             "HELP"              -> "H"
             _                   -> command
 
@@ -219,6 +228,7 @@ getValidInput = do
                 putStrLn "Value out of range" >> getValidInput
             else
                 return (commandShort, value)
+        "PQ" -> return (commandShort, value)
         "H" -> return (commandShort, 0)
         _ ->
             putStrLn "Invalid command, try again." >> getValidInput
@@ -235,25 +245,25 @@ debuggerLineOutput pcVal opcode operand1 operand2 = do
 
         str_pcAop = showHexF pcVal ++ ": " ++ showHexF opcode ++ " "
         operandCount :: Int = case addressingMode of
-                                "Immediate" -> 1
-                                "Zeropage"  -> 1
-                                "Zeropagex" -> 1
-                                "ZeropageY" -> 1
-                                "Absolute"  -> 2
-                                "Absolutex" -> 2
-                                "Absolutey" -> 2
-                                "Indirectx" -> 1
-                                "Indirecty" -> 1
-                                "Indirect"  -> 2
-                                "Implied"   -> 0
-                                "Relative"  -> 1
-                                -- Accumulator?
-                                _           -> -1
+                                "Immediate"   -> 1
+                                "Zeropage"    -> 1
+                                "Zeropagex"   -> 1
+                                "ZeropageY"   -> 1
+                                "Absolute"    -> 2
+                                "Absolutex"   -> 2
+                                "Absolutey"   -> 2
+                                "Indirectx"   -> 1
+                                "Indirecty"   -> 1
+                                "Indirect"    -> 2
+                                "Implied"     -> 0
+                                "Relative"    -> 1
+                                "Useacc"      -> 0
+                                _             -> -1
         str_operands = case operandCount of
                             0 ->  "       "
                             1 ->  showHexF operand1 ++ "     "
                             2 ->  showHexF operand1 ++ " " ++ showHexF operand2 ++ "  "
-                            _ ->  "error. Not a known addressing mode"
+                            _ ->  "error. "
         -- case addressingMode of
         --     "Immediate" -> putStr $ showHexF operand1 ++ "       " ++ instructionName ++ " #" ++ showHexF operand1 ++ "     >"
         --     "Absolute"  -> putStr $ showHexF operand1 ++ " " ++ showHexF operand2 ++ "    " ++ instructionName ++ "   " ++ showHexF operand2 ++ showHexF operand1 ++ "   >"
@@ -265,3 +275,25 @@ debuggerLineOutput pcVal opcode operand1 operand2 = do
 
     str_pcAop ++ str_operands ++ str_instrName
     
+manageSimulatedKeyPress :: Memory -> IO ()
+manageSimulatedKeyPress mem = do
+    let idx = 1 * kbMatrixCols + 0
+        newMatrix =
+            IBVector.replicate (kbMatrixRows * kbMatrixCols) False
+            IBVector.// [(idx, True)]
+
+    writeIORef (keyboardMatrix mem) newMatrix
+
+
+-- updateKeyboardMatrix :: Memory -> IO ()
+-- updateKeyboardMatrix mem = do
+--     keyStates <- SDL.getKeyboardState
+
+--     let updateKey :: IBVector.Vector Bool -> (SDL.Scancode, (Int, Int)) -> IBVector.Vector Bool
+--         updateKey km (sc, (row, col)) =
+--             let idx = row * kbMatrixCols + col
+--             in km IBVector.// [(idx, keyStates sc)]
+
+--         newMatrix = foldl updateKey (IBVector.replicate (kbMatrixRows * kbMatrixCols) False) keyMapping
+
+--     writeIORef (keyboardMatrix mem) newMatrix

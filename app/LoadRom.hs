@@ -1,6 +1,6 @@
 module LoadRom where
 
-import Memory (Memory, writeMemory)
+import MemoryRegisters (Memory, writeMemory)
 
 import qualified Data.Vector as IBVector
 import qualified Data.ByteString as B
