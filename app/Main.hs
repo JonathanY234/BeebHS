@@ -6,15 +6,14 @@ import SDLVideoOutput (initVideo, endVideo, eventLoop, renderMode7Frame)
 import HarteCpuTests (runTests)
 import Debug (DebugState, DebugState(..))
 
-import Control.Concurrent (threadDelay)
-import Control.Monad (unless, when)
+--import Control.Concurrent (threadDelay)
+import Control.Monad (unless, when, forM)
 import System.Environment (getArgs)
 import System.Exit (exitSuccess)
 
 --temp
 import Data.Word (Word16, Word8)
-import MemoryRegisters (Memory, readMemory, writeMemory)
-import Control.Monad (forM)
+import MemoryRegisters (Memory, readMemory)
 import KeyboardInput (updateKeyboardMatrix)
 --endtemp
 
@@ -60,7 +59,7 @@ main = do
                     -- writeMemory mem 0xfe41 0x52
                     -- writeMemory mem 0xfe43 0x00
                     -- writeMemory mem 0xfe4f 0x21
-                    irq mem regs
+                    -- irq mem regs
 
                 --threadDelay (1000000 `div` targetHz)
                 mainLoop newDebugState

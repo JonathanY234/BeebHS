@@ -1,10 +1,23 @@
 module KeyboardInput where
 
+import Via (kbMatrixCols, kbMatrixRows, keyboardMatrix, kbMatrixCols)
+import MemoryRegisters (Memory, sysvia)
+
 import Data.IORef (readIORef, writeIORef)
 import Data.Vector qualified as IBVector
-import MemoryRegisters (Memory, kbMatrixCols, kbMatrixRows, keyboardMatrix, kbMatrixCols)
+
 import SDL qualified
 import Control.Monad (forM_, when)
+
+--       0x00      0x01  0x02  0x03 0x04 0x05 0x06 0x07 0x08 0x09    
+-- 0x00  Shift     Ctrl  <------- starup up DIP swicthes ------->  
+-- 0x10  Q         3     4     5    f4   8    f7   =-   ~^   Left    
+-- 0x20  f0        W     E     T    7    I    9    0    £    Down    
+-- 0x30  1         2     D     R    6    U    O    P    [{   Up      
+-- 0x40  CapsLck   A     X     F    Y    J    K    @    :*   Return  
+-- 0x50  ShiftLck  S     C     G    H    N    L    ;+   ]}   Delete  
+-- 0x60  Tab       Z     SPC   V    B    M    <,   >.   /?   Copy    
+-- 0x70  ESC       f1    f2    f3   f5   f6   f8   f9   \    Right   
 
 keyMapping :: [(SDL.Scancode, (Int, Int))]
 keyMapping =
@@ -64,12 +77,12 @@ updateKeyboardMatrix mem = do
 
         newMatrix = foldl updateKey (IBVector.replicate (kbMatrixRows * kbMatrixCols) False) keyMapping
 
-    writeIORef (keyboardMatrix mem) newMatrix
+    writeIORef (keyboardMatrix (sysvia mem)) newMatrix
     -- printKeyboardMatrix mem
 
 printKeyboardMatrix :: Memory -> IO ()
 printKeyboardMatrix mem = do
-    kb <- readIORef (keyboardMatrix mem)
+    kb <- readIORef (keyboardMatrix (sysvia mem))
     let lst = IBVector.toList kb
     forM_ (zip [1..] lst) $ \(i, val) -> do
         putStr (if val then "1," else "0,")

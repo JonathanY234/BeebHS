@@ -7,3 +7,5 @@ Reads the opcodeTable from the haskell source file and generates a mnemonic to c
 ## makeCrossRefrencedDissasembly.py
 
 Reads the opcodeTable from the Haskell source, the assembled os12.rom, and the os12 ROM disassembly by Tony Nelson. It then annotates each instruction in the disassembly with its corresponding memory location. This makes debugging easier, as instructions in memory can be directly referenced in the disassembly to understand what they do.
+
+Currently Chapters 10, 18 and 19 are skipped because they cause errors and fixing them is not a high priority

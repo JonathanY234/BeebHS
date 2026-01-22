@@ -82,7 +82,7 @@ runInstructionsDebug mem regs count = loop 0 --dbs
 
                 when (simKP == 2) $ manageSimulatedKeyPress mem
                 when (simKP == 1) $ do 
-                    manageSimulatedKeyPress mem >> irq mem regs
+                    manageSimulatedKeyPress mem-- >> irq mem regs
                     putStrLn "Hi i did IRQ"
 
                 -- run current instruction

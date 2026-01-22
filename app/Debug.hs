@@ -1,7 +1,8 @@
 module Debug where
 
-import MemoryRegisters (Memory (keyboardMatrix), readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), kbMatrixCols, kbMatrixRows)
+import MemoryRegisters (Memory (sysvia), readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg))
 import Utilities (showHexX, showHexF)
+import Via (kbMatrixRows, kbMatrixCols, Via (keyboardMatrix))
 
 import System.IO (hFlush, stdout)
 import Data.IORef (readIORef, writeIORef)
@@ -154,6 +155,9 @@ handleInput mem regs debugState@(DebugState bps _ _ simKP) = do
             -- if simKP == 0
             --     then handleInput mem regs debugState { simulatedKeyPress = 1 } -- fix
             --     else handleInput mem regs debugState { simulatedKeyPress = 2 }
+        "J" -> do
+            writeIORef (pc regs) (fromIntegral value)
+            handleInput mem regs debugState
         "H" -> putStrLn debuggerHelpMessage >> handleInput mem regs debugState
         _ -> do
             putStrLn "Invalid command, this should not be reachable should have been handled by getValidInput"
@@ -189,6 +193,7 @@ getValidInput = do
             "MEMORY"            -> "M"
             "REGISTERS"         -> "R"
             "PASTEQ"            -> "PQ"
+            "JUMP"              -> "J"
             "HELP"              -> "H"
             _                   -> command
 
@@ -229,6 +234,13 @@ getValidInput = do
             else
                 return (commandShort, value)
         "PQ" -> return (commandShort, value)
+        "J" ->
+            if numErr then
+                putStrLn "Not a valid number" >> getValidInput
+            else if value > 0xFFFF then
+                putStrLn "Value out of range" >> getValidInput
+            else
+                return (commandShort, value)
         "H" -> return (commandShort, 0)
         _ ->
             putStrLn "Invalid command, try again." >> getValidInput
@@ -282,18 +294,4 @@ manageSimulatedKeyPress mem = do
             IBVector.replicate (kbMatrixRows * kbMatrixCols) False
             IBVector.// [(idx, True)]
 
-    writeIORef (keyboardMatrix mem) newMatrix
-
-
--- updateKeyboardMatrix :: Memory -> IO ()
--- updateKeyboardMatrix mem = do
---     keyStates <- SDL.getKeyboardState
-
---     let updateKey :: IBVector.Vector Bool -> (SDL.Scancode, (Int, Int)) -> IBVector.Vector Bool
---         updateKey km (sc, (row, col)) =
---             let idx = row * kbMatrixCols + col
---             in km IBVector.// [(idx, keyStates sc)]
-
---         newMatrix = foldl updateKey (IBVector.replicate (kbMatrixRows * kbMatrixCols) False) keyMapping
-
---     writeIORef (keyboardMatrix mem) newMatrix
+    writeIORef (keyboardMatrix (sysvia mem)) newMatrix
