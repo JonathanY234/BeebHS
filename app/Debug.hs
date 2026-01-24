@@ -2,7 +2,7 @@ module Debug where
 
 import MemoryRegisters (Memory (sysvia), readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg))
 import Utilities (showHexX, showHexF)
-import Via (kbMatrixRows, kbMatrixCols, Via (keyboardMatrix))
+import Sysvia (kbdMatrixRows, kbdMatrixCols, Sysvia (keyboardMatrix))
 
 import System.IO (hFlush, stdout)
 import Data.IORef (readIORef, writeIORef)
@@ -117,7 +117,7 @@ opcodeNames = M.fromList
     (0xFD, "Absolutex SBC"),    (0xFE, "Absolutex INC")    ]
 
 debuggerHelpMessage :: String
-debuggerHelpMessage = 
+debuggerHelpMessage =
     "CONTINUE           (c)  --run emulator\n\
     \STEP n             (s)  --run for n instructions\n\
     \BREAKPOINT n       (b)  --set breakpoint at n\n\
@@ -200,7 +200,7 @@ getValidInput = do
     case commandShort of
         "C" -> return (commandShort, 0)
         "R" -> return (commandShort, 0)
-        
+
         "S" ->
             if value == 0 then
                 putStrLn "Cannot step 0" >> getValidInput
@@ -210,7 +210,7 @@ getValidInput = do
                     _   -> putStrLn "Not a valid number" >> getValidInput
             else
                 return (commandShort, read (rawInput !! 1)) -- messy but works, we need decimal value and know that input is already checked valid
-                
+
         "B" ->
             if numErr then
                 putStrLn "Not a valid number" >> getValidInput
@@ -286,12 +286,12 @@ debuggerLineOutput pcVal opcode operand1 operand2 = do
         str_instrName = instructionName ++ padding
 
     str_pcAop ++ str_operands ++ str_instrName
-    
+
 manageSimulatedKeyPress :: Memory -> IO ()
 manageSimulatedKeyPress mem = do
-    let idx = 1 * kbMatrixCols + 0
+    let idx = 1 * kbdMatrixCols + 0
         newMatrix =
-            IBVector.replicate (kbMatrixRows * kbMatrixCols) False
+            IBVector.replicate (kbdMatrixRows * kbdMatrixCols) False
             IBVector.// [(idx, True)]
 
     writeIORef (keyboardMatrix (sysvia mem)) newMatrix

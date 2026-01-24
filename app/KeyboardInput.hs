@@ -1,6 +1,6 @@
 module KeyboardInput where
 
-import Via (kbMatrixCols, kbMatrixRows, keyboardMatrix, kbMatrixCols)
+import Sysvia (kbdMatrixCols, kbdMatrixRows, keyboardMatrix)
 import MemoryRegisters (Memory, sysvia)
 
 import Data.IORef (readIORef, writeIORef)
@@ -72,10 +72,10 @@ updateKeyboardMatrix mem = do
 
     let updateKey :: IBVector.Vector Bool -> (SDL.Scancode, (Int, Int)) -> IBVector.Vector Bool
         updateKey km (sc, (row, col)) =
-            let idx = row * kbMatrixCols + col
+            let idx = row * kbdMatrixCols + col
             in km IBVector.// [(idx, keyStates sc)]
 
-        newMatrix = foldl updateKey (IBVector.replicate (kbMatrixRows * kbMatrixCols) False) keyMapping
+        newMatrix = foldl updateKey (IBVector.replicate (kbdMatrixRows * kbdMatrixCols) False) keyMapping
 
     writeIORef (keyboardMatrix (sysvia mem)) newMatrix
     -- printKeyboardMatrix mem
@@ -86,6 +86,6 @@ printKeyboardMatrix mem = do
     let lst = IBVector.toList kb
     forM_ (zip [1..] lst) $ \(i, val) -> do
         putStr (if val then "1," else "0,")
-        when (i `mod` kbMatrixCols == 0) $
+        when (i `mod` kbdMatrixCols == 0) $
             putStrLn ""
     putStrLn "_______________________________"
