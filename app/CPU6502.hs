@@ -1,8 +1,9 @@
 module CPU6502 where
 
-import MemoryRegisters (initMemory, readMemory, writeMemory, Memory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters) 
+import MemoryRegisters (initMemory, readMemory, writeMemory, Memory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters, sysvia) 
 import LoadRom (loadRom)
 import Debug ( DebugState(..), handleInput, debuggerLineOutput, manageSimulatedKeyPress)
+import Sysvia ( sysviaPoll, Sysvia (irqPendingFlag) )
 
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
@@ -37,6 +38,15 @@ getInitialPC mem = do
 
     return $ combineTwoBytes low high
 
+doIRQfromSysvia :: Memory -> CPURegs -> IO ()
+doIRQfromSysvia mem regs = do
+    let svia = sysvia mem
+
+    irqPendingFlagVal <- readIORef (irqPendingFlag svia)
+    when irqPendingFlagVal $ do
+
+        irq mem regs
+        writeIORef (irqPendingFlag svia) False
 
 runInstructions :: Memory -> CPURegs -> Int -> IO ()
 runInstructions mem regs count = loop 0 --replicateM might be cleaner here
@@ -47,8 +57,10 @@ runInstructions mem regs count = loop 0 --replicateM might be cleaner here
                 pcVal <- readIORef (pc regs)
                 currentInstructionOpcode <- readMemory mem pcVal
                 let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
-
                 instr mem regs
+
+                sysviaPoll (sysvia mem) 5
+                doIRQfromSysvia mem regs
                 loop (n+1)
 
 debuggerStart :: Memory -> CPURegs -> IO ()
@@ -59,7 +71,6 @@ debuggerStart mem regs = do
     currentInstructionOpcode <- readMemory mem pcVal
 
     putStr $ debuggerLineOutput pcVal currentInstructionOpcode operand1 operand2
-
 
 runInstructionsDebug :: Memory -> CPURegs -> Int -> DebugState -> IO DebugState
 runInstructionsDebug mem regs count = loop 0 --dbs
@@ -89,7 +100,16 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                 pcVal <- readIORef (pc regs)
                 currentInstructionOpcode <- readMemory mem pcVal
                 let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
+
+                opr1 <- readMemory mem (pcVal+1)
+                opr2 <- readMemory mem (pcVal+2)
+                when ((opr1 == 0x4E) && (opr2 ==0xFE)) $
+                    putStrLn "accessing ier stop here"
+
                 instr mem regs
+                
+                sysviaPoll (sysvia mem) 5
+                doIRQfromSysvia mem regs                
 
                 -- next instruction
                 nextPcVal <- readIORef (pc regs)
@@ -127,7 +147,7 @@ runInstructionsDebug mem regs count = loop 0 --dbs
 srReadBit :: Word8 -> IORef Word8 -> IO Bool
 srReadBit mask statusReg = do
     val <- readIORef statusReg
-    return $ (val .&. mask) /= 0
+    return $ (val .&. mask) /=0
 srReadCarry            :: IORef Word8 -> IO Bool; srReadCarry            = srReadBit 0x01
 srReadZero             :: IORef Word8 -> IO Bool; srReadZero             = srReadBit 0x02
 srReadInterruptDisable :: IORef Word8 -> IO Bool; srReadInterruptDisable = srReadBit 0x04
@@ -528,7 +548,7 @@ adc address mem regs isImmediate = do
 
     -- these flags are not right
     srWriteNegative (statusReg regs) (testBit binaryVal 7)
-    srWriteOverflow (statusReg regs) (((acc `xor` binaryVal) .&. (inputVal `xor` binaryVal) .&. 0x80) /= 0)
+    srWriteOverflow (statusReg regs) (((acc `xor` binaryVal) .&. (inputVal `xor` binaryVal) .&. 0x80) /=0)
 
 debugNibbleVal :: Word8 -> String
 debugNibbleVal input =

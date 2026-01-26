@@ -11,7 +11,7 @@ data Via = Via {ora :: IORef Word8, orb :: IORef Word8, ira :: IORef Word8, irb 
                 timer1c :: IORef Int, timer2c :: IORef Int, timer1l :: IORef Int, timer2l :: IORef Int,
                 timer1HasShot :: IORef Bool, timer2HasShot :: IORef Bool, timer1Adjust :: IORef Int, timer2Adjust :: IORef Int,
                 sr :: IORef Word8,
-                ca2 :: IORef Int, cb2 :: IORef Int,-- cb1 :: IORef Int, cb2 :: IORef Int,
+                ca2 :: IORef Bool, cb2 :: IORef Bool,-- cb1 :: IORef Int, cb2 :: IORef Int,
                 srMode :: IORef Int}
                 
                 -- keyboardMatrix :: IORef (IBVector.Vector Bool),
@@ -30,23 +30,23 @@ initVia = do
     ifrRef           <- newIORef 0
     ierRef           <- newIORef ier_set_clear
     timer1cRef       <- newIORef 0
-    timer1lRef       <- newIORef 0
+    timer1lRef       <- newIORef 0xFFFF
     timer2cRef       <- newIORef 0
-    timer2lRef       <- newIORef 0
+    timer2lRef       <- newIORef 0xFFFF
     timer1HasShotRef <- newIORef False
     timer2HasShotRef <- newIORef False
     timer1Adjust     <- newIORef 0
     timer2Adjust     <- newIORef 0
     srRef            <- newIORef 0
-    ca2Ref           <- newIORef 0
-    cb2Ref           <- newIORef 0
+    ca2Ref           <- newIORef False
+    cb2Ref           <- newIORef False
     srModeRef        <- newIORef 0
     --sysviaRef      <- initSysviaOnly
     -- kMatr  <- newIORef (IBVector.replicate (kbMatrixRows * kbMatrixCols) False)
 
     return (Via oraRef orbRef iraRef irbRef ddraRef ddrbRef
              acrRef pcrRef ifrRef ierRef
-             timer1cRef timer1lRef timer2cRef timer2lRef      
+             timer1cRef timer2cRef timer1lRef timer2lRef      
              timer1HasShotRef timer2HasShotRef timer1Adjust timer2Adjust
              srRef ca2Ref cb2Ref srModeRef)
 

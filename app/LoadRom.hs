@@ -1,6 +1,6 @@
 module LoadRom where
 
-import MemoryRegisters (Memory, writeMemory)
+import MemoryRegisters (Memory, writeMemoryArrayOnly, changeInitialTimer1c)
 
 import qualified Data.Vector as IBVector
 import qualified Data.ByteString as B
@@ -13,7 +13,8 @@ loadRom :: FilePath -> Word16 -> Memory -> IO ()
 loadRom path codeOffset mem = withBinaryFile path ReadMode $ \fHandle -> do
     bytes <- B.unpack <$> B.hGetContents fHandle
     let bytesAndIndexes = zip ([codeOffset..] :: [Word16]) bytes
-    forM_ bytesAndIndexes $ uncurry (writeMemory mem)
+    forM_ bytesAndIndexes $ uncurry (writeMemoryArrayOnly mem)
+    changeInitialTimer1c mem
 
 loadMode7Font :: FilePath -> Int -> IO (IBVector.Vector [[Bool]])
 loadMode7Font path headersize = withBinaryFile path ReadMode $ \fHandle -> do
@@ -33,8 +34,8 @@ rearrangeLettersRowColumnFormat input = concatMap separateDoubleRow doubleRows
 
         separateDoubleRow :: [Word8] -> [[Bool]]
         separateDoubleRow row =
-            let top    = map (\b -> (b .&. 0xF) /= 0) row
-                bottom = map (\b -> (b `shiftR` 4) /= 0) row
+            let top    = map (\b -> (b .&. 0xF) /=0) row
+                bottom = map (\b -> (b `shiftR` 4) /=0) row
             in [top, bottom]
 
 chunksOf :: Int -> [a] -> [[a]]

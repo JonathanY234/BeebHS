@@ -6,7 +6,7 @@ import ViaConstants
 import Data.Word (Word8, Word16)
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef', writeIORef)
 import qualified Data.Vector as IBVector
-import Data.Bits ((.|.), (.&.), shiftL, shiftR, Bits (clearBit, complement, setBit))
+import Data.Bits ((.|.), (.&.), shiftL, shiftR, Bits (clearBit, complement, setBit, xor))
 import Control.Monad (when)
 
 -- should this really go here?
@@ -17,7 +17,7 @@ kbdMatrixCols = 10
 data Sysvia = Sysvia {via :: Via, srTrigger :: IORef Int, sdbVal :: IORef Word8,
                       kbdRow :: IORef Int, kbdCol :: IORef Int, keyboardMatrix :: IORef (IBVector.Vector Bool), keysDown :: IORef Int, keyboardLinks :: IORef Word8,
                       ic32State :: IORef Word8,
-                      intStatus :: IORef Word8, customSRTrigger :: IORef Int} --intStatus doesnt belong here
+                      intStatus :: IORef Word8, customSRTrigger :: IORef Int, irqPendingFlag :: IORef Bool} --doesnt belong here
 
 initSysvia :: IO Sysvia
 initSysvia = do
@@ -32,13 +32,20 @@ initSysvia = do
     ic32StateRef        <- newIORef 0
     intStatusRef <- newIORef 0 --doesnt belong here
     customSRTriggerRef <- newIORef (-1)
-    return (Sysvia viaRef srTriggerRef sdbValRef kbdRowRef kbdColRef kMatrRef keysDownRef keyboardLinksRef ic32StateRef intStatusRef customSRTriggerRef)
+    irqPendingFlagRef <- newIORef False
+    return (Sysvia viaRef srTriggerRef sdbValRef kbdRowRef kbdColRef kMatrRef keysDownRef keyboardLinksRef ic32StateRef intStatusRef customSRTriggerRef irqPendingFlagRef)
 
 -- via inside sysvia helper functions
 readViaF :: Sysvia -> (Via -> IORef a) -> IO a
 readViaF sv fieldGetter = readIORef (fieldGetter (via sv))
 writeViaF :: Sysvia -> (Via -> IORef a) -> a -> IO ()
-writeViaF sv fieldSetter = writeIORef (fieldSetter (via sv))
+writeViaF sv fieldSetter value = do
+    oldIerVal <- readViaF sv ier
+    writeIORef (fieldSetter (via sv)) value
+    newIerVal <- readIORef (ier (via sv))
+    when (oldIerVal /= newIerVal) $
+        putStrLn "Ier Changed!!!!!"
+
 modifyViaF :: Sysvia -> (Via -> IORef a) -> (a -> a) -> IO ()
 modifyViaF sv field = modifyIORef' (field (via sv))
 
@@ -47,7 +54,7 @@ updateIFRTopBit :: Sysvia -> IO () --done
 updateIFRTopBit svia = do
     ifrVal <- readViaF svia ifr
     ierVal <- readViaF svia ier
-    if (ifrVal .&. (ierVal .&. 0x07)) /= 0 then do
+    if (ifrVal .&. (ierVal .&. 0x07)) /=0 then do
         modifyViaF svia ifr (.|. ifr_irq)
         --INTSTATUS
         modifyIORef' (intStatus svia) (`setBit` 0)
@@ -63,7 +70,7 @@ doKbdIntCheck svia = do
 
     when ((keysDownVal > 0) && (pcrVal .&. 0x0C) == 4) $ do
         ic32StateVal <- readIORef (ic32State svia)
-        if ic32StateVal .&. ic32_keyboard_write /= 0 then do
+        if ic32StateVal .&. ic32_keyboard_write /=0 then do
             modifyViaF svia ifr (.|. ifr_ca2)
             updateIFRTopBit svia
         else do
@@ -99,14 +106,14 @@ ic32Write svia val = do
     prevIc32StateVal <- readIORef (ic32State svia)
 
     let (bit :: Int) = fromIntegral val .&. 7
-    if (val .&. 8) /= 0 then
+    if (val .&. 8) /=0 then
         modifyIORef' (ic32State svia) (.|. 1 `shiftL` bit)
     else
         modifyIORef' (ic32State svia) (.&. 1 `shiftL` bit)
 
     ic32StateVal <- readIORef (ic32State svia)
 
-    when (((ic32StateVal .&. ic32_keyboard_write) == 0) && ((prevIc32StateVal .&. ic32_keyboard_write) /= 0)) $ do
+    when (((ic32StateVal .&. ic32_keyboard_write) == 0) && ((prevIc32StateVal .&. ic32_keyboard_write) /=0)) $ do
         sdbValVal <- readIORef (sdbVal svia)
         writeIORef (kbdRow svia) ((fromIntegral sdbValVal `shiftR` 4) .&. 7)
         writeIORef (kbdCol svia) (fromIntegral sdbValVal .&. 0x0F)
@@ -123,8 +130,6 @@ slowDataBusWrite svia val = do
         doKbdIntCheck svia
     --sound code go here
 
-
-
 slowDataBusRead :: Sysvia -> IO Word8 --done
 slowDataBusRead svia = do
     oraVal <- readViaF svia ora
@@ -139,30 +144,6 @@ slowDataBusRead svia = do
         then return $ result .&. 128
         else return result
 
-
-
---other
-updateSRState :: Sysvia -> Bool -> IO () --done
-updateSRState svia srRW = do
-    acrVal <- readViaF svia acr
-
-    let mode = fromIntegral $ (acrVal `shiftR` 2) .&. 0x07
-    writeViaF svia srMode mode
-
-    -- srTriggerVal <- readIORef (srTrigger svia)
-    -- when ((mode == 2 || mode == 6) && srTriggerVal == maxBound) $
-    --     setTrigger 32 (srTrigger svia)
-    customSRTriggerVal <- readIORef (customSRTrigger svia)
-    when ((mode == 2 || mode == 6) && customSRTriggerVal == (-1)) $
-        writeIORef (customSRTrigger svia) 32
-
-    when srRW $ do
-        ifrVal <- readViaF svia ifr
-        when (ifrVal .&. ifr_shiftreg /= 0) $ do
-            writeIORef (ifr (via svia)) (ifrVal .&. complement ifr_shiftreg)
-            updateIFRTopBit svia
-
-
 -- the actual sysvia read and write functions
 
 --WRITE SYSVIA
@@ -174,7 +155,7 @@ writeSysvia svia 0xFE40 val = do                        --ORB
     ifrVal <- readViaF svia ifr
     pcrVal <- readViaF svia pcr
 
-    when (((ifrVal .&. ifr_cb2) /= 0) && ((pcrVal .&. 0x20) == 0)) $
+    when (((ifrVal .&. ifr_cb2) /=0) && ((pcrVal .&. 0x20) == 0)) $
         modifyViaF svia ifr (.&. complement ifr_cb2)
     modifyViaF svia ifr (.&. complement ifr_cb1)
     updateIFRTopBit svia
@@ -199,7 +180,7 @@ writeSysvia svia 0xFE45 val = do                        --Timer
     writeViaF svia timer1c (newtimer1lVal * 2 + 1)
 
     acrVal <- readViaF svia acr
-    when ((acrVal .&. acr_timer1_output_enable) /= 0) $ do
+    when ((acrVal .&. acr_timer1_output_enable) /=0) $ do
         modifyViaF svia orb (.&. 0x7F)
         modifyViaF svia irb (.&. 0x7F)
     modifyViaF svia ifr (.&. complement ifr_timer1)
@@ -243,24 +224,24 @@ writeSysvia svia 0xFE4C val = do                        --pcr
     writeViaF svia pcr val
 
     if (val .&. pcr_ca2_control) == pcr_ca2_output_high then
-        writeViaF svia ca2 1
+        writeViaF svia ca2 True
 
     else when ((val .&. pcr_ca2_control) == pcr_ca2_output_low) $
-        writeViaF svia ca2 0
+        writeViaF svia ca2 False
 
-    if (val .&. pcr_cb2_control) == pcr_cb2_output_high then do
-        cb2Val <- readViaF svia cb2
-        when (cb2Val == 0) $
-            -- Light pen?
-            writeViaF svia cb2 1
+    if (val .&. pcr_cb2_control) == pcr_cb2_output_high then
+        --cb2Val <- readViaF svia cb2
+        -- unless cb2Val $
+        --     -- Light pen?
+        writeViaF svia cb2 True
 
     else when ((val .&. pcr_cb2_control) == pcr_cb2_output_low) $
-        writeViaF svia cb2 0
+        writeViaF svia cb2 False
 writeSysvia svia 0xFE4D val = do                        --IFR
     modifyViaF svia ifr (.&. complement val)
     updateIFRTopBit svia
 writeSysvia svia 0xFE4E val = do                        --IER
-    if (val .&. 0x80) /= 0 then
+    if (val .&. 0x80) /=0 then
         modifyViaF svia ier (.|. val)
     else
         modifyViaF svia ier (.&. complement val)
@@ -338,3 +319,83 @@ readSysvia svia 0xFE4F = do                     --ORAnh
     slowDataBusRead svia
 
 readSysvia _ addr = putStrLn ("read sysvia Unknown address" ++ show addr) >> return 0
+
+
+
+--other
+updateSRState :: Sysvia -> Bool -> IO () --done
+updateSRState svia srRW = do
+    acrVal <- readViaF svia acr
+
+    let mode = fromIntegral $ (acrVal `shiftR` 2) .&. 0x07
+    writeViaF svia srMode mode
+
+    -- srTriggerVal <- readIORef (srTrigger svia)
+    -- when ((mode == 2 || mode == 6) && srTriggerVal == maxBound) $
+    --     setTrigger 32 (srTrigger svia)
+    customSRTriggerVal <- readIORef (customSRTrigger svia)
+    when ((mode == 2 || mode == 6) && customSRTriggerVal == (-1)) $
+        writeIORef (customSRTrigger svia) 32
+
+    when srRW $ do
+        ifrVal <- readViaF svia ifr
+        when (ifrVal .&. ifr_shiftreg /=0) $ do
+            writeIORef (ifr (via svia)) (ifrVal .&. complement ifr_shiftreg)
+            updateIFRTopBit svia
+
+sysviaPollReal :: Sysvia -> IO ()
+sysviaPollReal svia = do
+    -- simplified
+    timer1cVal <- readViaF svia timer1c
+    --putStrLn $ "timer1cVal is: " ++ show timer1cVal
+
+    acrVal <- readViaF svia acr
+    when ((timer1cVal <= 0) || ((acrVal .&. acr_timer1_continuous) /=0)) $ do-- ier should stop interupts from happening
+        
+        --idk what
+        modifyViaF svia ifr (.|. ifr_timer1)
+        updateIFRTopBit svia
+        
+        when ((acrVal .&. acr_timer1_output_enable) /=0) $ do
+            modifyViaF svia orb (`xor` 0x80)
+            modifyViaF svia irb (`xor` 0x80)
+
+        -- trigger irq
+        ierVal <- readViaF svia ier
+        when ((ierVal .&. ier_timer1) /=0) $ do
+            writeIORef (irqPendingFlag svia) True
+            putStrLn "hi from sysviaPollReal i asked for an IRQ because timer1c reached 0, and ier stuff"
+        -- reset timer1c
+        timer1lVal <- readViaF svia timer1l
+        modifyViaF svia timer1c (+ ((timer1lVal * 2) + 4))
+
+        
+        --timer1cVal2 <- readViaF svia timer1c
+        --putStrLn $ "also timer1c now has value of: " ++ show timer1cVal2
+
+    -- do timer2 as well
+
+sysviaPoll :: Sysvia -> Int -> IO ()
+sysviaPoll svia cyclesPassed = do
+    -- update counters
+    --putStrLn $ "cyclesPassed has value of " ++ show cyclesPassed
+    --before <- readViaF svia timer1c
+
+    modifyViaF svia timer1c (\x -> x - cyclesPassed) --decr timer1c
+    --after <- readViaF svia timer1c
+    --putStrLn $ "timer1c: before " ++ show before ++ " after " ++ show after
+
+    acrVal <- readViaF svia acr
+    when ((acrVal .&. acr_timer2_control) /=0) $
+        modifyViaF svia timer2c (\x -> x - cyclesPassed) -- conditionally decr timer2c
+
+    timer1cVal <- readViaF svia timer1c
+    timer2cVal <- readViaF svia timer2c
+    when ((timer1cVal < 0) || (timer2cVal < 0)) $
+        sysviaPollReal svia
+    -- Todo Shift Register
+    -- customSRTriggerVal <- readIORef (customSRTrigger svia)
+    -- when (customSRTrigger <= 0) $
+    --     SRPoll svia
+
+    doKbdIntCheck svia

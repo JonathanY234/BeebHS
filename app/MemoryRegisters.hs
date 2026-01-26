@@ -1,20 +1,24 @@
 module MemoryRegisters where
 
-import Sysvia (Sysvia, initSysvia, readSysvia, writeSysvia)
+import Sysvia (Sysvia (via), initSysvia, readSysvia, writeSysvia)
+import Utilities (showHexF)
+import Via (Via(timer1c))
 
 import Data.Word (Word16, Word8)
-import Data.IORef (IORef, newIORef)
+import Data.IORef (IORef, newIORef, writeIORef)
 import qualified Data.Vector.Unboxed.Mutable as MUVector
 import Data.Bits ((.&.))
+
 
 
 data Memory = Memory {m :: MUVector.IOVector Word8, sysvia :: Sysvia}
 
 readMemory :: Memory -> Word16 -> IO Word8
 readMemory mem address =
-    if address .&. 0xFFF0 == 0xFE40 then
+    if address .&. 0xFFF0 == 0xFE40 then do
+        putStrLn $ "a via address was read " ++ showHexF address
         readSysvia (sysvia mem) address
-    else    
+    else
         MUVector.read (m mem) (fromIntegral address)
 
 
@@ -35,10 +39,10 @@ readMemory mem address =
 --         when (i `mod` kbMatrixCols == 0) $
 --             putStrLn ""
 
-
 writeMemory :: Memory -> Word16 -> Word8 -> IO ()
 writeMemory mem address value =
-    if address .&. 0xFFF0 == 0xFE40 then
+    if address .&. 0xFFF0 == 0xFE40 then do
+        putStrLn $ "a via address was written " ++ showHexF address
         writeSysvia (sysvia mem) address value
     else
         MUVector.write (m mem) (fromIntegral address) value
@@ -59,3 +63,11 @@ initRegisters ipc ia ix iy isp isr = do
     spRef <- newIORef isp
     srRef <- newIORef isr
     return (CPURegs pcRef aRef xRef yRef spRef srRef)
+
+writeMemoryArrayOnly :: Memory -> Word16 -> Word8 -> IO ()
+writeMemoryArrayOnly mem address = MUVector.write (m mem) (fromIntegral address)
+
+changeInitialTimer1c :: Memory -> IO ()
+changeInitialTimer1c mem = do
+    let v = via (sysvia mem)
+    writeIORef (timer1c v) 1000

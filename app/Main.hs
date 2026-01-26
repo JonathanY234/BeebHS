@@ -1,6 +1,6 @@
 module Main where
 
-import CPU6502 (cpuInit, irq, runInstructionsDebug, runInstructions, debuggerStart)
+import CPU6502 (cpuInit, runInstructionsDebug, runInstructions, debuggerStart)
 import LoadRom (loadMode7Font)
 import SDLVideoOutput (initVideo, endVideo, eventLoop, renderMode7Frame)
 import HarteCpuTests (runTests)

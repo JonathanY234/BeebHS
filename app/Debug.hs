@@ -2,7 +2,8 @@ module Debug where
 
 import MemoryRegisters (Memory (sysvia), readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg))
 import Utilities (showHexX, showHexF)
-import Sysvia (kbdMatrixRows, kbdMatrixCols, Sysvia (keyboardMatrix))
+import Sysvia (kbdMatrixRows, kbdMatrixCols, Sysvia (keyboardMatrix, via))
+import Via (Via (pcr, ier, ddrb, ddra, timer1c, timer1l, orb, ira, irb, timer2c, acr, ora, timer2l, ifr))
 
 import System.IO (hFlush, stdout)
 import Data.IORef (readIORef, writeIORef)
@@ -159,6 +160,7 @@ handleInput mem regs debugState@(DebugState bps _ _ simKP) = do
             writeIORef (pc regs) (fromIntegral value)
             handleInput mem regs debugState
         "H" -> putStrLn debuggerHelpMessage >> handleInput mem regs debugState
+        "RS" -> printSysviaRegs mem >> handleInput mem regs debugState
         _ -> do
             putStrLn "Invalid command, this should not be reachable should have been handled by getValidInput"
             return debugState
@@ -195,6 +197,7 @@ getValidInput = do
             "PASTEQ"            -> "PQ"
             "JUMP"              -> "J"
             "HELP"              -> "H"
+            "RSYSVIA"           -> "RS"
             _                   -> command
 
     case commandShort of
@@ -242,6 +245,7 @@ getValidInput = do
             else
                 return (commandShort, value)
         "H" -> return (commandShort, 0)
+        "RS" -> return (commandShort, 0)
         _ ->
             putStrLn "Invalid command, try again." >> getValidInput
 
@@ -286,6 +290,30 @@ debuggerLineOutput pcVal opcode operand1 operand2 = do
         str_instrName = instructionName ++ padding
 
     str_pcAop ++ str_operands ++ str_instrName
+
+printSysviaRegs :: Memory -> IO ()
+printSysviaRegs mem = do
+    let v = via (sysvia mem)
+    oraVal <- readIORef (ora v)
+    orbVal <- readIORef (orb v)
+    iraVal <- readIORef (ira v)
+    irbVal <- readIORef (irb v)
+    ddraVal <- readIORef (ddra v)
+    ddrbVal <- readIORef (ddrb v)
+    acrVal <- readIORef (acr v)
+    pcrVal <- readIORef (pcr v)
+    t1lVal <- readIORef (timer1l v)
+    t2lVal <- readIORef (timer2l v)
+    t1cVal <- readIORef (timer1c v)
+    t2cVal <- readIORef (timer2c v)
+    ierVal <- readIORef (ier v)
+    ifrVal <- readIORef (ifr v)
+    putStrLn "System VIA registers :"
+    putStrLn $ "ORA  " ++ showHexF oraVal ++ " ORB  " ++ showHexF orbVal ++ " IRA " ++ showHexF iraVal ++ " IRB " ++ showHexF irbVal
+    putStrLn $ "DDRA " ++ showHexF ddraVal ++ " DDRB " ++ showHexF ddrbVal ++ " ACR " ++ showHexF acrVal ++ " PCR " ++ showHexF pcrVal
+    putStrLn $ "Timer 1 Latch " ++ show t1lVal ++ "  count " ++ show t1cVal --timers and latches not shown in hex
+    putStrLn $ "Timer 2 Latch " ++ show t2lVal ++ "  count " ++ show t2cVal
+    putStrLn $ "IER " ++ showHexF ierVal ++ " IFR " ++ showHexF ifrVal
 
 manageSimulatedKeyPress :: Memory -> IO ()
 manageSimulatedKeyPress mem = do
