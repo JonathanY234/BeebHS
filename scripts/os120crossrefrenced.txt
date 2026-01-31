@@ -9798,57 +9798,57 @@
 ;
 ; ***************************************************************************************
 .resetEntryPoint
-    LDA #$40                                            ; the numerical value of the RTI opcode
-    STA .nmiEntryPoint                                  ; store RTI instruction at the start of the NMI routine
+    LDA #$40                                            ; the numerical value of the RTI opcode  $^$ 0xd95e
+    STA .nmiEntryPoint                                  ; store RTI instruction at the start of the NMI routine  $^$ 0xd9a7
 
-    SEI                                                 ; disable interrupts just in case
-    CLD                                                 ; clear decimal flag
-    LDX #$FF                                            ; reset stack to where it should be
-    TXS                                                 ; ($01FF)
-    LDA .systemVIAInterruptEnableRegister               ; read interupt enable register of the system VIA
-    ASL                                                 ; shift bit 7 (reading IER always returns 1 in bit 7) into carry
-    PHA                                                 ; save what's left (for use later when setting page 2: just before .setUpPage2)
-    BEQ .clearRAM                                       ; if (power on) then branch
-    LDA .escapeAndBreakEffect                           ; read BREAK Action flags (set by *FX200,n)
-    LSR                                                 ; divide by 2 to get the break action
-    CMP #1                                              ;
-    BNE .setUpSystemVIA                                 ; if (break action says we don't need to clear RAM) then branch
-    LSR                                                 ; set A=0 (since A=1 at this point)
+    SEI                                                 ; disable interrupts just in case  $^$ 0xd9d2
+    CLD                                                 ; clear decimal flag  $^$ 0xd9d3
+    LDX #$FF                                            ; reset stack to where it should be  $^$ 0xd9d4
+    TXS                                                 ; ($01FF)  $^$ 0xd9d6
+    LDA .systemVIAInterruptEnableRegister               ; read interupt enable register of the system VIA  $^$ 0xd9d7
+    ASL                                                 ; shift bit 7 (reading IER always returns 1 in bit 7) into carry  $^$ 0xd9da
+    PHA                                                 ; save what's left (for use later when setting page 2: just before .setUpPage2)  $^$ 0xd9db
+    BEQ .clearRAM                                       ; if (power on) then branch  $^$ 0xd9dc
+    LDA .escapeAndBreakEffect                           ; read BREAK Action flags (set by *FX200,n)  $^$ 0xd9de
+    LSR                                                 ; divide by 2 to get the break action  $^$ 0xd9e1
+    CMP #1                                              ;  $^$ 0xd9e2
+    BNE .setUpSystemVIA                                 ; if (break action says we don't need to clear RAM) then branch  $^$ 0xd9e4
+    LSR                                                 ; set A=0 (since A=1 at this point)  $^$ 0xd9e6
     ; fall through...
 
 ; ***************************************************************************************
 ; Clears all of RAM except the first byte in each Page. This avoids overwriting the RTI instruction at $0D00.
 .clearRAM
-    LDX #4                                              ; start clearing memory from page 4 ($0400)
-    STX $01                                             ; store a non-zero number at $01
-    STA $00                                             ; store A (currently zero) at $00
+    LDX #4                                              ; start clearing memory from page 4 ($0400)  $^$ 0xd9e7
+    STX $01                                             ; store a non-zero number at $01  $^$ 0xd9e9
+    STA $00                                             ; store A (currently zero) at $00  $^$ 0xd9eb
 
-    TAY                                                 ; and set Y (loop counter) to zero
+    TAY                                                 ; and set Y (loop counter) to zero  $^$ 0xd9ed
 -
-    STA ($00),Y                                         ; clear RAM
-    CMP $01                                             ; check high byte of address
-    BEQ +                                               ; if (zero) then branch:
+    STA ($00),Y                                         ; clear RAM  $^$ 0xd9ee
+    CMP $01                                             ; check high byte of address  $^$ 0xd9f0
+    BEQ +                                               ; if (zero) then branch:  $^$ 0xd9f2
 
     ; This happens when we clear byte $4001 on a 16k machine the RAM memory addressing loops
     ; it around to write a zero into $0001. We are done at this point and branch out to avoid
     ; overwriting the rest of zero page.
 
-    INY                                                 ; increment loop counter
-    BNE -                                               ; if (not zero) then branch (loop back)
-    INY                                                 ; increment again (Y=1) this avoids overwriting RTI instruction at $D00
-    INX                                                 ; increment X
-    INC $01                                             ; increment high byte of address
-    BPL -                                               ; loop until A=$80 then exit
+    INY                                                 ; increment loop counter  $^$ 0xd9f4
+    BNE -                                               ; if (not zero) then branch (loop back)  $^$ 0xd9f5
+    INY                                                 ; increment again (Y=1) this avoids overwriting RTI instruction at $D00  $^$ 0xd9f7
+    INX                                                 ; increment X  $^$ 0xd9f8
+    INC $01                                             ; increment high byte of address  $^$ 0xd9f9
+    BPL -                                               ; loop until A=$80 then exit  $^$ 0xd9fb
 
 +
-    STX .systemAvailableRAM                             ; writes marker for available RAM ($40=16k; $80=32k)
-    STX .softKeyConsistencyFlag                         ; write non-zero value in soft key consistency flag
+    STX .systemAvailableRAM                             ; writes marker for available RAM ($40=16k; $80=32k)  $^$ 0xd9fd
+    STX .softKeyConsistencyFlag                         ; write non-zero value in soft key consistency flag  $^$ 0xda00
     ; fall through...
 
 ; ***************************************************************************************
 .setUpSystemVIA
-    LDX #%00001111                                      ; set System VIA PORT B to output on bits 0-3; input on bits 4-7
-    STX .systemVIADataDirectionRegisterB                ;
+    LDX #%00001111                                      ; set System VIA PORT B to output on bits 0-3; input on bits 4-7  $^$ 0xda03
+    STX .systemVIADataDirectionRegisterB                ;  $^$ 0xda05
 
 ; The next loop writes 14, 13, 12, 11, 10, 9, 8 in turn to System VIA Register B which:
 ;       - turns CAPS LOCK off;
@@ -9859,10 +9859,10 @@
 ;
 ; (See .systemVIARegisterB)
 -
-    DEX                                                 ; loop counter
-    STX .systemVIARegisterB                             ; write system VIA register B
-    CPX #9                                              ;
-    BCS -                                               ; if (X>=9) then branch (loop back and do it again)
+    DEX                                                 ; loop counter  $^$ 0xda08
+    STX .systemVIARegisterB                             ; write system VIA register B  $^$ 0xda09
+    CPX #9                                              ;  $^$ 0xda0c
+    BCS -                                               ; if (X>=9) then branch (loop back and do it again)  $^$ 0xda0e
     ; fall through...
 
 ; ***************************************************************************************
@@ -9875,15 +9875,15 @@
 ; These are rotated into the 8 bits of .interruptAccumulator for further processing
 ;
 ; ***************************************************************************************
-    INX                                                 ; X=9 (loop counter)
+    INX                                                 ; X=9 (loop counter)  $^$ 0xda10
 -
-    TXA                                                 ; Start of loop to interrogate keyboard
-    JSR .interrogateKeyboard                            ; with A = 9...1 which reads keyboard links 9-2 and CTRL key
-    CPX #$80                                            ; set carry if the 'key' or 'link' is 'pressed' or 'set'
-    ROR .interruptAccumulator                           ; rotate carry into MSB into bit 7 of .interruptAccumulator
-    TAX                                                 ; get back value of X for loop
-    DEX                                                 ; decrement it
-    BNE -                                               ; if (not zero) then branch (do loop again)
+    TXA                                                 ; Start of loop to interrogate keyboard  $^$ 0xda11
+    JSR .interrogateKeyboard                            ; with A = 9...1 which reads keyboard links 9-2 and CTRL key  $^$ 0xda12
+    CPX #$80                                            ; set carry if the 'key' or 'link' is 'pressed' or 'set'  $^$ 0xda15
+    ROR .interruptAccumulator                           ; rotate carry into MSB into bit 7 of .interruptAccumulator  $^$ 0xda17
+    TAX                                                 ; get back value of X for loop  $^$ 0xda19
+    DEX                                                 ; decrement it  $^$ 0xda1a
+    BNE -                                               ; if (not zero) then branch (do loop again)  $^$ 0xda1b
 
     ; At this point Carry(C) and .interruptAccumulator holds:
     ; C = }
@@ -9896,8 +9896,8 @@
     ; 6 = not used
     ; 7 = CTRL key
 
-    STX .lastResetType                                  ; set last reset type = 0
-    ROL .interruptAccumulator                           ;
+    STX .lastResetType                                  ; set last reset type = 0  $^$ 0xda1d
+    ROL .interruptAccumulator                           ;  $^$ 0xda20
 
     ; At this point .interruptAccumulator holds keyboard links:
     ; 0 = }
@@ -9917,24 +9917,24 @@
 ; Initialise keyboard lights, Work out what variables to reset
 ;
 ; ***************************************************************************************
-    JSR .keyboardIndicators                             ; set LEDs. carry flag (CTRL key) is put into bit zero of A
-    ROR                                                 ; put bit zero of A (CTRL key) into carry flag
+    JSR .keyboardIndicators                             ; set LEDs. carry flag (CTRL key) is put into bit zero of A  $^$ 0xda22
+    ROR                                                 ; put bit zero of A (CTRL key) into carry flag  $^$ 0xda25
 
     ; set up page 2 based on reset type
-    LDX #<.softResetLWM                                 ; X = low water mark for setting OS variables (writes to range $200+X -> $2FF)
-    LDY #.powerOnResetHWM - .defaultVectorTable         ; Y = high water mark for writing default values into OS variables (writes to range $200+Y -> $0200)
-    PLA                                                 ; get back A (which is .systemVIAInterruptEnableRegister shifted left once)
-    BEQ +                                               ; if (A=0) then branch (power on reset, with X=$9C Y=$8D)
-    LDY #.softResetHWM - .defaultVectorTable            ; set value for soft reset HWM
-    BCC .setUpPage2                                     ; if (soft reset) then branch
-    LDY #.hardResetHWM - .defaultVectorTable            ; hard reset
-    INC .lastResetType                                  ; reset type=1
+    LDX #<.softResetLWM                                 ; X = low water mark for setting OS variables (writes to range $200+X -> $2FF)  $^$ 0xda26
+    LDY #.powerOnResetHWM - .defaultVectorTable         ; Y = high water mark for writing default values into OS variables (writes to range $200+Y -> $0200)  $^$ 0xda28
+    PLA                                                 ; get back A (which is .systemVIAInterruptEnableRegister shifted left once)  $^$ 0xda2a
+    BEQ +                                               ; if (A=0) then branch (power on reset, with X=$9C Y=$8D)  $^$ 0xda2b
+    LDY #.softResetHWM - .defaultVectorTable            ; set value for soft reset HWM  $^$ 0xda2d
+    BCC .setUpPage2                                     ; if (soft reset) then branch  $^$ 0xda2f
+    LDY #.hardResetHWM - .defaultVectorTable            ; hard reset  $^$ 0xda31
+    INC .lastResetType                                  ; reset type=1  $^$ 0xda33
 +
-    INC .lastResetType                                  ; 'power on' or hard reset
-    LDA .interruptAccumulator                           ; get keyboard links set
-    EOR #%11111111                                      ; invert all bits
-    STA .startUpOptions                                 ; and record as start up options
-    LDX #<.hardResetLWM                                 ;
+    INC .lastResetType                                  ; 'power on' or hard reset  $^$ 0xda36
+    LDA .interruptAccumulator                           ; get keyboard links set  $^$ 0xda39
+    EOR #%11111111                                      ; invert all bits  $^$ 0xda3b
+    STA .startUpOptions                                 ; and record as start up options  $^$ 0xda3d
+    LDX #<.hardResetLWM                                 ;  $^$ 0xda40
     ; fall through...
 
 ; ***************************************************************************************
@@ -9953,23 +9953,23 @@
 ;
 ; ***************************************************************************************
 .setUpPage2
-    LDA #0                                              ; A=0
+    LDA #0                                              ; A=0  $^$ 0xda42
 -
-    CPX #$CE                                            ; this loop writes zero into the addresses in range $0290/C to $02CD...
-    BCC +                                               ;
-    LDA #$FF                                            ; ... and writes 255 into addresses in range $02CE to $02FF
+    CPX #$CE                                            ; this loop writes zero into the addresses in range $0290/C to $02CD...  $^$ 0xda44
+    BCC +                                               ;  $^$ 0xda46
+    LDA #$FF                                            ; ... and writes 255 into addresses in range $02CE to $02FF  $^$ 0xda48
 +
-    STA .page2Start,X                                   ;
-    INX                                                 ;
-    BNE -                                               ;
+    STA .page2Start,X                                   ;  $^$ 0xda4a
+    INX                                                 ;  $^$ 0xda4d
+    BNE -                                               ;  $^$ 0xda4e
                                                         ; At this point A=$FF and X=0
-    STA .userVIADataDirectionRegisterA                  ; set port A of user VIA to all outputs (printer out)
-    TXA                                                 ; A=0
-    LDX #$E2                                            ; loop counter
+    STA .userVIADataDirectionRegisterA                  ; set port A of user VIA to all outputs (printer out)  $^$ 0xda50
+    TXA                                                 ; A=0  $^$ 0xda53
+    LDX #$E2                                            ; loop counter  $^$ 0xda54
 -
-    STA $00,X                                           ; }
-    INX                                                 ; } this loop stores zero in zero-page memory locations $E2 to $FF
-    BNE -                                               ; }
+    STA $00,X                                           ; }  $^$ 0xda56
+    INX                                                 ; } this loop stores zero in zero-page memory locations $E2 to $FF  $^$ 0xda58
+    BNE -                                               ; }  $^$ 0xda59
     ; fall through...
 
 ; ***************************************************************************************
@@ -9979,10 +9979,10 @@
 ; Y is the loop counter (set up above, depending on boot type).
 ; ***************************************************************************************
 -
-    LDA .defaultVectorTable - 1,Y                       ; read data from default table+Y
-    STA .page2Start - 1,Y                               ; write data to $0200+Y
-    DEY                                                 ; decrement loop counter
-    BNE -                                               ; branch back
+    LDA .defaultVectorTable - 1,Y                       ; read data from default table+Y  $^$ 0xda5b
+    STA .page2Start - 1,Y                               ; write data to $0200+Y  $^$ 0xda5e
+    DEY                                                 ; decrement loop counter  $^$ 0xda61
+    BNE -                                               ; branch back  $^$ 0xda62
     ; fall through...
 
 ; ***************************************************************************************
@@ -9990,9 +9990,9 @@
 ; Put a SPACE in the first key pressed variable
 ;
 ; ***************************************************************************************
-    LDA #.internalKeyNumberSPACEBAR                     ; }
-    STA .firstKeyPressedInternal                        ; } store SPACE in .firstKeyPressedInternal
-    JSR .setupACIA                                      ; set up ACIA
+    LDA #.internalKeyNumberSPACEBAR                     ; }  $^$ 0xda64
+    STA .firstKeyPressedInternal                        ; } store SPACE in .firstKeyPressedInternal  $^$ 0xda66
+    JSR .setupACIA                                      ; set up ACIA  $^$ 0xda68
                                                         ; X=0
     ; fall through...
 
@@ -10001,13 +10001,13 @@
 ; Set system and user VIA registers
 ;
 ; ***************************************************************************************
-    LDA #$7F                                            ; Disable interrupts (top bit clear and all others set means disable all interrupts)
-    INX                                                 ; X=1
+    LDA #$7F                                            ; Disable interrupts (top bit clear and all others set means disable all interrupts)  $^$ 0xda6b
+    INX                                                 ; X=1  $^$ 0xda6d
 -
-    STA .systemVIAInterruptFlagRegister,X               ; Set .systemVIAInterruptEnableRegister and .systemVIAInterruptFlagRegister
-    STA .userVIAInterruptFlagRegister,X                 ; Set   .userVIAInterruptEnableRegister and   .userVIAInterruptFlagRegister
-    DEX                                                 ; X--
-    BPL -                                               ; loop back if X >= 0
+    STA .systemVIAInterruptFlagRegister,X               ; Set .systemVIAInterruptEnableRegister and .systemVIAInterruptFlagRegister  $^$ 0xda6e
+    STA .userVIAInterruptFlagRegister,X                 ; Set   .userVIAInterruptEnableRegister and   .userVIAInterruptFlagRegister  $^$ 0xda71
+    DEX                                                 ; X--  $^$ 0xda74
+    BPL -                                               ; loop back if X >= 0  $^$ 0xda75
     ; fall through...
 
 ; ***************************************************************************************
@@ -10015,13 +10015,13 @@
 ; Check for initialising JIM device
 ;
 ; ***************************************************************************************
-    CLI                                                 ; briefly allow interrupts (JIM based hardware can cause an
+    CLI                                                 ; briefly allow interrupts (JIM based hardware can cause an  $^$ 0xda77
                                                         ; interrupt here, which will set .interruptAccumulator to $7F,
                                                         ; according to the comments in the original source code)
-    SEI                                                 ; then disallow again (N.B. All VIA IRQs are disabled)
-    BIT .interruptAccumulator                           ; if bit six is set, then we have JIM hardware to initialize.
-    BVC +                                               ; if (bit six clear) then branch over next instruction
-    JSR .jimPagedEntryJumper                            ; This calls the JIM paged entry point (to initialise JIM based hardware.)
+    SEI                                                 ; then disallow again (N.B. All VIA IRQs are disabled)  $^$ 0xda78
+    BIT .interruptAccumulator                           ; if bit six is set, then we have JIM hardware to initialize.  $^$ 0xda79
+    BVC +                                               ; if (bit six clear) then branch over next instruction  $^$ 0xda7b
+    JSR .jimPagedEntryJumper                            ; This calls the JIM paged entry point (to initialise JIM based hardware.)  $^$ 0xda7d
 +
     ; fall through...
 
@@ -10042,20 +10042,20 @@
 ; Initialises other devices to default settings (light pen strobe, printer, user port)
 ;
 ; ***************************************************************************************
-    LDX #%11110010                                      ; enable some System VIA interrupts:
-    STX .systemVIAInterruptEnableRegister               ;   1   Vertical sync
+    LDX #%11110010                                      ; enable some System VIA interrupts:  $^$ 0xda80
+    STX .systemVIAInterruptEnableRegister               ;   1   Vertical sync  $^$ 0xda82
                                                         ;   4   Analogue conversion finished
                                                         ;   5   Timer 2 counter (for speech)
                                                         ;   6   Timer 1 counter (100Hz)
-    LDX #%00000100                                      ; set system VIA PCR
-    STX .systemVIAPeripheralControlRegister             ; set the PCR:
+    LDX #%00000100                                      ; set system VIA PCR  $^$ 0xda85
+    STX .systemVIAPeripheralControlRegister             ; set the PCR:  $^$ 0xda87
                         ; CA1 has negative active edge       (vertical sync)
                         ; CA2 positive edges active on input (keyboard)
                         ; CB1 has negative active edge       (end of analogue conversion)
                         ; CB2 negative active edges on input (light pen strobe)
 
-    LDA #%01100000                                      ; set system VIA ACR
-    STA .systemVIAAuxiliaryControlRegister              ; Disable latches and shift register
+    LDA #%01100000                                      ; set system VIA ACR  $^$ 0xda8a
+    STA .systemVIAAuxiliaryControlRegister              ; Disable latches and shift register  $^$ 0xda8c
                                                         ; (bits 0-4 = %00000)
                                                         ; timer 2 countdown (for Speech)
                                                         ; with pulses on input pin PB6
@@ -10064,28 +10064,28 @@
                                                         ; with PB7 disabled
                                                         ; (bit 6-7 = %01)
 
-    LDA #$0E                                            ; set system VIA Timer 1 counter (Low)
-    STA .systemVIATimer1LatchLow                        ; this becomes effective when Timer 1 Counter High set
+    LDA #$0E                                            ; set system VIA Timer 1 counter (Low)  $^$ 0xda8f
+    STA .systemVIATimer1LatchLow                        ; this becomes effective when Timer 1 Counter High set  $^$ 0xda91
 
-    STA .userVIAPeripheralControlRegister               ; set user VIA PCR:
+    STA .userVIAPeripheralControlRegister               ; set user VIA PCR:  $^$ 0xda94
                         ; CA1 interrupt on -ve edge     (usually printer Acknowledge)
                         ; CA2 high output               (usually printer strobe)
                         ; CB1 interrupt on -ve edge     (user port)
                         ; CB2 negative edge             (user port)
 
-    STA .adcStartConversionRegister                     ; Start analogue to digital conversion
+    STA .adcStartConversionRegister                     ; Start analogue to digital conversion  $^$ 0xda97
                                                         ; A=%1110, meaning channel 2 of range 0-3,
                                                         ; twelve bit conversion.
 
-    CMP .userVIAPeripheralControlRegister               ; check user VIA PCR
-    BEQ +                                               ; if (printer present) then branch
-    INC .userVIAIRQBitMask                              ; increment user VIA mask to 0 to ignore all user VIA interrupts
+    CMP .userVIAPeripheralControlRegister               ; check user VIA PCR  $^$ 0xda9a
+    BEQ +                                               ; if (printer present) then branch  $^$ 0xda9d
+    INC .userVIAIRQBitMask                              ; increment user VIA mask to 0 to ignore all user VIA interrupts  $^$ 0xda9f
 +
-    LDA #$27                                            ; set Timer 1 (high byte) to $27.
+    LDA #$27                                            ; set Timer 1 (high byte) to $27.  $^$ 0xdaa2
                                                         ; this sets Timer 1 to $270E (=9998 uS)
-    STA .systemVIATimer1LatchHigh                       ; so interrupt occurs
+    STA .systemVIATimer1LatchHigh                       ; so interrupt occurs  $^$ 0xdaa4
                                                         ; every 100th of a second
-    STA .systemVIATimer1CounterHigh                     ; set counter (high byte) which
+    STA .systemVIATimer1CounterHigh                     ; set counter (high byte) which  $^$ 0xdaa7
                                                         ; actually starts the timer
     ; fall through...
 
@@ -10095,17 +10095,17 @@
 ;
 ; ***************************************************************************************
 .resetClearAllSounds
-    JSR .clearSoundChannels                             ; clear the sound channels
+    JSR .clearSoundChannels                             ; clear the sound channels  $^$ 0xdaaa
 
     ; Initialise the serial ULA
-    LDA .serialULARegisterCopy                          ; read serial ULA control register (OS copy)
-    AND #$7F                                            ; zero bit 7
-    JSR .setSerialULADirectly                           ; and set up serial ULA
+    LDA .serialULARegisterCopy                          ; read serial ULA control register (OS copy)  $^$ 0xdaad
+    AND #$7F                                            ; zero bit 7  $^$ 0xdab0
+    JSR .setSerialULADirectly                           ; and set up serial ULA  $^$ 0xdab2
 
     ; reset function keys
-    LDX .softKeyConsistencyFlag                         ; get soft key status flag
-    BEQ .selectROMLoop                                  ; if (keys OK) then branch
-    JSR .osbyte18EntryPoint                             ; reset function keys
+    LDX .softKeyConsistencyFlag                         ; get soft key status flag  $^$ 0xdab5
+    BEQ .selectROMLoop                                  ; if (keys OK) then branch  $^$ 0xdab8
+    JSR .osbyte18EntryPoint                             ; reset function keys  $^$ 0xdaba
     ; fall through...
 
 ; ***************************************************************************************
@@ -10161,60 +10161,60 @@
 ;
 ; ***************************************************************************************
 .selectROMLoop
-    JSR .selectROM                                      ; select ROM X
-    LDX #3                                              ; set X to point to offset in table
-    LDY .romCopyrightOffsetPointer                      ; get copyright offset from ROM
+    JSR .selectROM                                      ; select ROM X  $^$ 0xdabd
+    LDX #3                                              ; set X to point to offset in table  $^$ 0xdac0
+    LDY .romCopyrightOffsetPointer                      ; get copyright offset from ROM  $^$ 0xdac2
 -
-    LDA .romStartAddress,Y                              ; get first byte
-    CMP .copyrightString,X                              ; compare it with table byte
-    BNE .noCopyright                                    ; if (no copyright) then branch
-    INY                                                 ; point to next byte in ROM
-    DEX                                                 ; point to previous byte in ")C(",0 string
-    BPL -                                               ; if (still +ve) then branch (go back to check next byte)
+    LDA .romStartAddress,Y                              ; get first byte  $^$ 0xdac5
+    CMP .copyrightString,X                              ; compare it with table byte  $^$ 0xdac8
+    BNE .noCopyright                                    ; if (no copyright) then branch  $^$ 0xdacb
+    INY                                                 ; point to next byte in ROM  $^$ 0xdacd
+    DEX                                                 ; point to previous byte in ")C(",0 string  $^$ 0xdace
+    BPL -                                               ; if (still +ve) then branch (go back to check next byte)  $^$ 0xdacf
                                                         ; this point is reached if 4 bytes indicate valid ROM
 
     ; Check the first 1K of each ROM against higher priority ROMs to ensure that
     ; there are no matches. If a match is found, ignore the lower priority ROM
-    LDX .currentlySelectedROM                           ; get RAM copy of ROM number in X
-    LDY .currentlySelectedROM                           ; and Y
+    LDX .currentlySelectedROM                           ; get RAM copy of ROM number in X  $^$ 0xdad1
+    LDY .currentlySelectedROM                           ; and Y  $^$ 0xdad3
 
 .nextROM
-    INY                                                 ; increment Y to check
-    CPY #16                                             ; check ROM number against 16
-    BCS .romComparisonDone                              ; if (ROM number is 16 or more) then branch (done checking each ROM, store catalogue byte)
-    TYA                                                 ; put Y in A
-    EOR #$FF                                            ; invert it
-    STA .tempStoreFA                                    ; and store at .tempStoreFA
-    LDA #$7F                                            ; }
-    STA .tempStoreFB                                    ; } store $7F at .tempStoreFB to get address $7FFF-Y
+    INY                                                 ; increment Y to check  $^$ 0xdad5
+    CPY #16                                             ; check ROM number against 16  $^$ 0xdad6
+    BCS .romComparisonDone                              ; if (ROM number is 16 or more) then branch (done checking each ROM, store catalogue byte)  $^$ 0xdad8
+    TYA                                                 ; put Y in A  $^$ 0xdada
+    EOR #$FF                                            ; invert it  $^$ 0xdadb
+    STA .tempStoreFA                                    ; and store at .tempStoreFA  $^$ 0xdadd
+    LDA #$7F                                            ; }  $^$ 0xdadf
+    STA .tempStoreFB                                    ; } store $7F at .tempStoreFB to get address $7FFF-Y  $^$ 0xdae1
 
 .nextByteInROM
-    STY .romSelectRegister                              ; switch the ROM into the memory map
-    LDA (.tempStoreFA),Y                                ; get byte
-    STX .romSelectRegister                              ; switch the original ROM into the memory map
-    CMP (.tempStoreFA),Y                                ; and compare with previous byte called
-    BNE .nextROM                                        ; if (not the same) then branch (go back and do it again with next ROM)
-    INC .tempStoreFA                                    ; increment .tempStoreFA to point to new location
-    BNE .nextByteInROM                                  ; if (.tempStoreFA is not zero) then branch (check next byte)
-    INC .tempStoreFB                                    ; increment tempStoreFB (high byte of address)
-    LDA .tempStoreFB                                    ; load it
-    CMP #$84                                            ; check if it has reached $84 = $80 + (4*256 bytes), i.e. 1k checked
-    BCC .nextByteInROM                                  ; if (not checked 1k yet) then branch (check next 256 bytes)
+    STY .romSelectRegister                              ; switch the ROM into the memory map  $^$ 0xdae3
+    LDA (.tempStoreFA),Y                                ; get byte  $^$ 0xdae6
+    STX .romSelectRegister                              ; switch the original ROM into the memory map  $^$ 0xdae8
+    CMP (.tempStoreFA),Y                                ; and compare with previous byte called  $^$ 0xdaeb
+    BNE .nextROM                                        ; if (not the same) then branch (go back and do it again with next ROM)  $^$ 0xdaed
+    INC .tempStoreFA                                    ; increment .tempStoreFA to point to new location  $^$ 0xdaef
+    BNE .nextByteInROM                                  ; if (.tempStoreFA is not zero) then branch (check next byte)  $^$ 0xdaf1
+    INC .tempStoreFB                                    ; increment tempStoreFB (high byte of address)  $^$ 0xdaf3
+    LDA .tempStoreFB                                    ; load it  $^$ 0xdaf5
+    CMP #$84                                            ; check if it has reached $84 = $80 + (4*256 bytes), i.e. 1k checked  $^$ 0xdaf7
+    BCC .nextByteInROM                                  ; if (not checked 1k yet) then branch (check next 256 bytes)  $^$ 0xdaf9
 
 .noCopyright
-    LDX .currentlySelectedROM                           ; X=current ROM
-    BPL +                                               ; if (+ve) then branch
+    LDX .currentlySelectedROM                           ; X=current ROM  $^$ 0xdafb
+    BPL +                                               ; if (+ve) then branch  $^$ 0xdafd
 
 .romComparisonDone
-    LDA .romTypeByte                                    ; get rom type byte
-    STA .romTypeTable,X                                 ; store it in catalogue
-    AND #$8F                                            ; check for BASIC
-    BNE +                                               ; if (not BASIC) then branch
-    STX .basicROMNumber                                 ; store X at BASIC pointer
+    LDA .romTypeByte                                    ; get rom type byte  $^$ 0xdaff
+    STA .romTypeTable,X                                 ; store it in catalogue  $^$ 0xdb02
+    AND #$8F                                            ; check for BASIC  $^$ 0xdb05
+    BNE +                                               ; if (not BASIC) then branch  $^$ 0xdb07
+    STX .basicROMNumber                                 ; store X at BASIC pointer  $^$ 0xdb09
 +
-    INX                                                 ; increment X to point to next ROM
-    CPX #16                                             ; check X against 16
-    BCC .selectROMLoop                                  ; if (15 or less) then branch (back for next ROM)
+    INX                                                 ; increment X to point to next ROM  $^$ 0xdb0c
+    CPX #16                                             ; check X against 16  $^$ 0xdb0d
+    BCC .selectROMLoop                                  ; if (15 or less) then branch (back for next ROM)  $^$ 0xdb0f
     ; fall through...
 
 ; ***************************************************************************************
@@ -10222,19 +10222,19 @@
 ; Check for speech system
 ;
 ; ***************************************************************************************
-    BIT .systemVIARegisterB                             ; check for speech system
-    BMI .skipSpeech                                     ; if (bit 7 set) then branch (no speech system fitted)
+    BIT .systemVIARegisterB                             ; check for speech system  $^$ 0xdb11
+    BMI .skipSpeech                                     ; if (bit 7 set) then branch (no speech system fitted)  $^$ 0xdb14
 
-    DEC .speechSystemPresentFlag                        ; .speechSystemPresentFlag set to $FF to indicate speech present
+    DEC .speechSystemPresentFlag                        ; .speechSystemPresentFlag set to $FF to indicate speech present  $^$ 0xdb16
 
 -
-    LDY #$FF                                            ; Y=$FF (speech 'reset' command)
-    JSR .osbyte159EntryPoint                            ; initialise speech generator
-    DEX                                                 ; loop counter X from 16 to zero
-    BNE -                                               ; branch back unless zero
+    LDY #$FF                                            ; Y=$FF (speech 'reset' command)  $^$ 0xdb19
+    JSR .osbyte159EntryPoint                            ; initialise speech generator  $^$ 0xdb1b
+    DEX                                                 ; loop counter X from 16 to zero  $^$ 0xdb1e
+    BNE -                                               ; branch back unless zero  $^$ 0xdb1f
 
-    STX .systemVIATimer2CounterLow                      ;
-    STX .systemVIATimer2CounterHigh                     ; clear Timer 2 to zero (used for Speech)
+    STX .systemVIATimer2CounterLow                      ;  $^$ 0xdb21
+    STX .systemVIATimer2CounterHigh                     ; clear Timer 2 to zero (used for Speech)  $^$ 0xdb24
     ; fall through...
 
 ; ***************************************************************************************
@@ -10243,18 +10243,18 @@
 ;
 ; ***************************************************************************************
 .skipSpeech
-    LDA .startUpOptions                                 ; get back start up options (bits 0-2 are MODE)
-    JSR .initialiseScreenOnReset                        ; then jump to screen initialisation
+    LDA .startUpOptions                                 ; get back start up options (bits 0-2 are MODE)  $^$ 0xdb27
+    JSR .initialiseScreenOnReset                        ; then jump to screen initialisation  $^$ 0xdb2a
 
     ; *KEY 10 facility (insert the *KEY 10 character code into the keyboard buffer)
-    LDY #.charKEY10                                     ; }
-    JSR .insertByteIntoKeyboardBuffer                   ; } enter $CA in keyboard buffer. This activates the *KEY 10 facility.
+    LDY #.charKEY10                                     ; }  $^$ 0xdb2d
+    JSR .insertByteIntoKeyboardBuffer                   ; } enter $CA in keyboard buffer. This activates the *KEY 10 facility.  $^$ 0xdb2f
 
     ; execute any user BOOT interception code, if present (with carry clear)
-    JSR .osbyte247EntryPoint                            ; call user boot routine if present, with carry clear
+    JSR .osbyte247EntryPoint                            ; call user boot routine if present, with carry clear  $^$ 0xdb32
                                                         ; it's called again later with carry set
 
-    JSR .setupTapeOptions                               ; set up cassette options [normally
+    JSR .setupTapeOptions                               ; set up cassette options [normally  $^$ 0xdb35
                                                         ; at 300 baud, but if the user BOOT
                                                         ; interception code sets Z then
                                                         ; 1200 baud]
@@ -10265,15 +10265,15 @@
 ; Initialise Tube
 ;
 ; ***************************************************************************************
-    LDA #%10000001                                      ; test for Tube to FIFO buffer 1
-    STA .tubeULAStatusRegister                          ;
-    LDA .tubeULAStatusRegister                          ; test for Tube presence
-    ROR                                                 ; put bit 0 into carry
-    BCC +                                               ; if (no Tube present) then branch
-    LDX #.romServiceCallTubeMainInitialisation          ; }
-    JSR .osbyte143EntryPoint                            ; } initialise Tube system (issue ROM service call)
-    BNE +                                               ; if (Tube not initialised) then branch
-    DEC .tubePresentFlag                                ; set Tube flag to show it's active
+    LDA #%10000001                                      ; test for Tube to FIFO buffer 1  $^$ 0xdb38
+    STA .tubeULAStatusRegister                          ;  $^$ 0xdb3a
+    LDA .tubeULAStatusRegister                          ; test for Tube presence  $^$ 0xdb3d
+    ROR                                                 ; put bit 0 into carry  $^$ 0xdb40
+    BCC +                                               ; if (no Tube present) then branch  $^$ 0xdb41
+    LDX #.romServiceCallTubeMainInitialisation          ; }  $^$ 0xdb43
+    JSR .osbyte143EntryPoint                            ; } initialise Tube system (issue ROM service call)  $^$ 0xdb45
+    BNE +                                               ; if (Tube not initialised) then branch  $^$ 0xdb48
+    DEC .tubePresentFlag                                ; set Tube flag to show it's active  $^$ 0xdb4a
     ; fall through...
 
 ; ***************************************************************************************
@@ -10284,19 +10284,19 @@
 ;
 ; ***************************************************************************************
 +
-    LDY #>.initialOSHWM                                 ; set default value of PAGE: $0E00
-    LDX #.romServiceCallAbsoluteWorkspaceClaim          ; issue claim absolute workspace call
-    JSR .osbyte143EntryPoint                            ; via .osbyte143EntryPoint
-    LDX #.romServiceCallPrivateWorkspaceClaim           ; send private workspace claim call
-    JSR .osbyte143EntryPoint                            ; via .osbyte143EntryPoint
-    STY .defaultOSHWM                                   ; set primary OSHWM
-    STY .currentOSHWM                                   ; set current OSHWM
-    LDX #.romServiceCallTubeSystemPostInitialisation    ; send to the Tube with the 'post
+    LDY #>.initialOSHWM                                 ; set default value of PAGE: $0E00  $^$ 0xdb4d
+    LDX #.romServiceCallAbsoluteWorkspaceClaim          ; issue claim absolute workspace call  $^$ 0xdb4f
+    JSR .osbyte143EntryPoint                            ; via .osbyte143EntryPoint  $^$ 0xdb51
+    LDX #.romServiceCallPrivateWorkspaceClaim           ; send private workspace claim call  $^$ 0xdb54
+    JSR .osbyte143EntryPoint                            ; via .osbyte143EntryPoint  $^$ 0xdb56
+    STY .defaultOSHWM                                   ; set primary OSHWM  $^$ 0xdb59
+    STY .currentOSHWM                                   ; set current OSHWM  $^$ 0xdb5c
+    LDX #.romServiceCallTubeSystemPostInitialisation    ; send to the Tube with the 'post  $^$ 0xdb5f
                                                         ; initialisation' reason (e.g.
                                                         ; second processor can decide to
                                                         ; explode the character set etc.)
-    LDY .tubePresentFlag                                ; Y=$FF if Tube present else Y=0
-    JSR .osbyte143EntryPoint                            ; and make call via .osbyte143EntryPoint
+    LDY .tubePresentFlag                                ; Y=$FF if Tube present else Y=0  $^$ 0xdb61
+    JSR .osbyte143EntryPoint                            ; and make call via .osbyte143EntryPoint  $^$ 0xdb64
     ; fall through...
 
 ; ***************************************************************************************
@@ -10308,26 +10308,26 @@
 ; resetting MOS variables above.
 ;
 ; ***************************************************************************************
-    AND .startupMessageSuppressionAndBootOptions        ; check (result of post-init AND bit 7
+    AND .startupMessageSuppressionAndBootOptions        ; check (result of post-init AND bit 7  $^$ 0xdb67
                                                         ; of .startupMessageSuppressionAndBootOptions)
-    BPL .skipStartupMessage                             ; if (result clear) then branch (skip
+    BPL .skipStartupMessage                             ; if (result clear) then branch (skip  $^$ 0xdb6a
                                                         ; startup message)
-    LDY #.bootMessage - .vduBaseAddress - 1             ;
-    JSR .displayString                                  ; output 'BBC Computer ' message
-    LDA .lastResetType                                  ; 0=soft reset, anything else continue
-    BEQ .outputTwoNewlines                              ; if (soft reset) then branch (skip
+    LDY #.bootMessage - .vduBaseAddress - 1             ;  $^$ 0xdb6c
+    JSR .displayString                                  ; output 'BBC Computer ' message  $^$ 0xdb6e
+    LDA .lastResetType                                  ; 0=soft reset, anything else continue  $^$ 0xdb71
+    BEQ .outputTwoNewlines                              ; if (soft reset) then branch (skip  $^$ 0xdb74
                                                         ; forward)
-    LDY #.bootMessageMemory32 - .vduBaseAddress - 1     ; set to point to 32k message
-    BIT .systemAvailableRAM                             ; read available RAM ($40 = 16k
+    LDY #.bootMessageMemory32 - .vduBaseAddress - 1     ; set to point to 32k message  $^$ 0xdb76
+    BIT .systemAvailableRAM                             ; read available RAM ($40 = 16k  $^$ 0xdb78
                                                         ; $80 = 32k)
-    BMI +                                               ; if (32k RAM available) then branch
-    LDY #.bootMessageMemory16 - .vduBaseAddress - 1     ; set to point to 16K message
+    BMI +                                               ; if (32k RAM available) then branch  $^$ 0xdb7b
+    LDY #.bootMessageMemory16 - .vduBaseAddress - 1     ; set to point to 16K message  $^$ 0xdb7d
 +
-    JSR .displayString                                  ; write message with '16K' or '32K'
+    JSR .displayString                                  ; write message with '16K' or '32K'  $^$ 0xdb7f
 
 .outputTwoNewlines
-    LDY #.bootMessageEnding  - .vduBaseAddress - 1      ; and two newlines
-    JSR .displayString                                  ;
+    LDY #.bootMessageEnding  - .vduBaseAddress - 1      ; and two newlines  $^$ 0xdb82
+    JSR .displayString                                  ;  $^$ 0xdb84
     ; fall through...
 
 ; ***************************************************************************************
@@ -10336,10 +10336,10 @@
 ;
 ; ***************************************************************************************
 .skipStartupMessage
-    SEC                                                 ;
-    JSR .osbyte247EntryPoint                            ; call user break intercept if present
+    SEC                                                 ;  $^$ 0xdb87
+    JSR .osbyte247EntryPoint                            ; call user break intercept if present  $^$ 0xdb88
                                                         ; (with carry set)
-    JSR .osbyte118EntryPoint                            ; set up keyboard LEDs to reflect
+    JSR .osbyte118EntryPoint                            ; set up keyboard LEDs to reflect  $^$ 0xdb8b
                                                         ; current keyboard status
                                                         ; also tests for SHIFT pressed
     ; fall through...
@@ -10352,26 +10352,26 @@
 ; This stops when one of the ROMs returns zero, indicating it will accept the auto-boot.
 ;
 ; ***************************************************************************************
-    PHP                                                 ; remember flags
-    PLA                                                 ; and recall flags in A = nvbdizc
-    LSR                                                 ;
-    LSR                                                 ;
-    LSR                                                 ;
-    LSR                                                 ; A=0000nvbd
-    EOR .startUpOptions                                 ; EOR with start up options, in
+    PHP                                                 ; remember flags  $^$ 0xdb8e
+    PLA                                                 ; and recall flags in A = nvbdizc  $^$ 0xdb8f
+    LSR                                                 ;  $^$ 0xdb90
+    LSR                                                 ;  $^$ 0xdb91
+    LSR                                                 ;  $^$ 0xdb92
+    LSR                                                 ; A=0000nvbd  $^$ 0xdb93
+    EOR .startUpOptions                                 ; EOR with start up options, in  $^$ 0xdb94
                                                         ; particular check bit 3 (if clear
                                                         ; reverse SHIFT BREAK action)
-    AND #8                                              ; isolate bit 3 only
-    TAY                                                 ; Y=0 (execute !BOOT) or 8 (don't
+    AND #8                                              ; isolate bit 3 only  $^$ 0xdb97
+    TAY                                                 ; Y=0 (execute !BOOT) or 8 (don't  $^$ 0xdb99
                                                         ; execute !BOOT)
-    LDX #.romServiceCallAutoBoot                        ; X = rom service call for auto-boot
-    JSR .osbyte143EntryPoint                            ; ask each ROM in turn if they want
+    LDX #.romServiceCallAutoBoot                        ; X = rom service call for auto-boot  $^$ 0xdb9a
+    JSR .osbyte143EntryPoint                            ; ask each ROM in turn if they want  $^$ 0xdb9c
                                                         ; to handle it
-    BEQ .checkForFindingLanguageROM                     ; if (a ROM accepts this call) then
+    BEQ .checkForFindingLanguageROM                     ; if (a ROM accepts this call) then  $^$ 0xdb9f
                                                         ; branch (to enter language ROM)
-    TYA                                                 ; put result from ROM (Y register) in
+    TYA                                                 ; put result from ROM (Y register) in  $^$ 0xdba1
                                                         ; A (to test if it's zero)
-    BNE .setTapeFSAndFindLanguageROM                    ; if (Y != 0, i.e. no filing system
+    BNE .setTapeFSAndFindLanguageROM                    ; if (Y != 0, i.e. no filing system  $^$ 0xdba2
                                                         ; accepts it) then branch
     ; fall through...
 
@@ -10380,8 +10380,8 @@
 ; Select the *ROM filing system
 ;
 ; ***************************************************************************************
-    LDA #141                                            ; }
-    JSR .osbyte141EntryPoint                            ; } select ROM filing system
+    LDA #141                                            ; }  $^$ 0xdba4
+    JSR .osbyte141EntryPoint                            ; } select ROM filing system  $^$ 0xdba6
     ; fall through...
 
 ; ***************************************************************************************
@@ -10389,12 +10389,12 @@
 ; Execute !BOOT
 ;
 ; ***************************************************************************************
-    LDX #<.runBootString                                ;
-    LDY #>.runBootString                                ;
-    DEC .startupMessageSuppressionAndBootOptions        ; decrement boot options
-    JSR .OSCLI                                          ; and execute */!BOOT
-    INC .startupMessageSuppressionAndBootOptions        ; restore boot options
-    BNE .checkForFindingLanguageROM                     ; ALWAYS branch, don't reset filing system
+    LDX #<.runBootString                                ;  $^$ 0xdba9
+    LDY #>.runBootString                                ;  $^$ 0xdbab
+    DEC .startupMessageSuppressionAndBootOptions        ; decrement boot options  $^$ 0xdbad
+    JSR .OSCLI                                          ; and execute */!BOOT  $^$ 0xdbb0
+    INC .startupMessageSuppressionAndBootOptions        ; restore boot options  $^$ 0xdbb3
+    BNE .checkForFindingLanguageROM                     ; ALWAYS branch, don't reset filing system  $^$ 0xdbb6
 
 ; ***************************************************************************************
 ;
@@ -10402,9 +10402,9 @@
 ;
 ; ***************************************************************************************
 .setTapeFSAndFindLanguageROM
-    LDA #0                                              ; }
-    TAX                                                 ; } set tape filing system
-    JSR .setTapeOrROMFS                                 ; }
+    LDA #0                                              ; }  $^$ 0xdbb8
+    TAX                                                 ; } set tape filing system  $^$ 0xdbba
+    JSR .setTapeOrROMFS                                 ; }  $^$ 0xdbbb
     ; fall through...
 
 ; ***************************************************************************************
@@ -10416,21 +10416,21 @@
 ;
 ; ***************************************************************************************
 .checkForFindingLanguageROM
-    LDA .lastResetType                                  ; get last RESET Type
-    BNE .findBestLanguageROM                            ; if (not soft reset) then branch
+    LDA .lastResetType                                  ; get last RESET Type  $^$ 0xdbbe
+    BNE .findBestLanguageROM                            ; if (not soft reset) then branch  $^$ 0xdbc1
 
-    LDX .languageROMNumber                              ; get current language ROM number
-    BPL .resetAndEnterLanguageROM                       ; if (language available) then branch (initialise and enter ROM)
+    LDX .languageROMNumber                              ; get current language ROM number  $^$ 0xdbc3
+    BPL .resetAndEnterLanguageROM                       ; if (language available) then branch (initialise and enter ROM)  $^$ 0xdbc6
 
 .findBestLanguageROM
-    LDX #15                                             ; set pointer to highest available ROM
+    LDX #15                                             ; set pointer to highest available ROM  $^$ 0xdbc8
 -
-    LDA .romTypeTable,X                                 ; get ROM type from map
-    ROL                                                 ; put bit 6 into bit 7
-    BMI .resetAndEnterLanguageROM                       ; if (bit 7 set then ROM has a language entry) then branch (initialise and enter ROM)
+    LDA .romTypeTable,X                                 ; get ROM type from map  $^$ 0xdbca
+    ROL                                                 ; put bit 6 into bit 7  $^$ 0xdbcd
+    BMI .resetAndEnterLanguageROM                       ; if (bit 7 set then ROM has a language entry) then branch (initialise and enter ROM)  $^$ 0xdbce
 
-    DEX                                                 ;
-    BPL -                                               ; search for language until X=255
+    DEX                                                 ;  $^$ 0xdbd0
+    BPL -                                               ; search for language until X=255  $^$ 0xdbd1
     ; fall through...
 
 ; ***************************************************************************************
@@ -10446,20 +10446,20 @@
 ; for by the ROM header's processor type byte (See .selectROMLoop).
 ;
 ; ***************************************************************************************
-    LDA #0                                              ; No language found.
-    BIT .tubePresentFlag                                ; check if Tube is present
-    BMI .tubeCopyLanguageROMToSecondProcessorLocal      ; if (Tube present) then branch (call into Tube code)
+    LDA #0                                              ; No language found.  $^$ 0xdbd3
+    BIT .tubePresentFlag                                ; check if Tube is present  $^$ 0xdbd5
+    BMI .tubeCopyLanguageROMToSecondProcessorLocal      ; if (Tube present) then branch (call into Tube code)  $^$ 0xdbd8
     ; fall through...
 
 ; ***************************************************************************************
 .brkNoLanguageError
-    BRK                                                 ;
+    BRK                                                 ;  $^$ 0xdbda
     !byte $F9                                           ; error number
     !text "Language?",0                                 ; message
 
 ; ***************************************************************************************
 .resetAndEnterLanguageROM
-    CLC                                                 ;
+    CLC                                                 ;  $^$ 0xdbe6
     ; fall through...
 
 ; ***************************************************************************************
@@ -10473,24 +10473,24 @@
 ;
 ; ***************************************************************************************
 .osbyte142EntryPoint
-    PHP                                                 ; save flags
-    STX .languageROMNumber                              ; put X in current ROM number
-    JSR .selectROM                                      ; select that ROM
-    LDA #>(.romTitleString - 1)                         ; } AY=address of ROM title string
-    LDY #<(.romTitleString - 1)                         ; }
-    JSR .displayStringAY                                ; display text string held in ROM at .romTitleString
-    STY .languageVersionString                          ; save Y on exit (end of language string)
-    JSR .OSNEWL                                         ; two line feeds
-    JSR .OSNEWL                                         ; are output
-    PLP                                                 ; then get back flags
-    LDA #1                                              ; A=1 required for language entry
-    BIT .tubePresentFlag                                ; check if the Tube is present
-    BMI .tubeCopyLanguageROMToSecondProcessorLocal      ; and branch if so
-    JMP .romLanguageEntry                               ; enter language at $8000
+    PHP                                                 ; save flags  $^$ 0xdbe7
+    STX .languageROMNumber                              ; put X in current ROM number  $^$ 0xdbe8
+    JSR .selectROM                                      ; select that ROM  $^$ 0xdbeb
+    LDA #>(.romTitleString - 1)                         ; } AY=address of ROM title string  $^$ 0xdbee
+    LDY #<(.romTitleString - 1)                         ; }  $^$ 0xdbf0
+    JSR .displayStringAY                                ; display text string held in ROM at .romTitleString  $^$ 0xdbf2
+    STY .languageVersionString                          ; save Y on exit (end of language string)  $^$ 0xdbf5
+    JSR .OSNEWL                                         ; two line feeds  $^$ 0xdbf7
+    JSR .OSNEWL                                         ; are output  $^$ 0xdbfa
+    PLP                                                 ; then get back flags  $^$ 0xdbfd
+    LDA #1                                              ; A=1 required for language entry  $^$ 0xdbfe
+    BIT .tubePresentFlag                                ; check if the Tube is present  $^$ 0xdc00
+    BMI .tubeCopyLanguageROMToSecondProcessorLocal      ; and branch if so  $^$ 0xdc03
+    JMP .romLanguageEntry                               ; enter language at $8000  $^$ 0xdc05
 
 ; ***************************************************************************************
 .tubeCopyLanguageROMToSecondProcessorLocal
-    JMP .tubeCopyLanguageROMToSecondProcessor           ; enter Tube environment
+    JMP .tubeCopyLanguageROMToSecondProcessor           ; enter Tube environment  $^$ 0xdc08
 
 ; ***************************************************************************************
 ;
@@ -10502,11 +10502,11 @@
 ;
 ; ***************************************************************************************
 .osrdrmEntryPoint
-    LDX .currentlySelectedROM                           ; get current ROM number into X
-    STY .currentlySelectedROM                           ; store new number
-    STY .romSelectRegister                              ; switch the ROM into the memory map
-    LDY #0                                              ; get current PHROM address
-    LDA (.romAddressLow),Y                              ; and get byte
+    LDX .currentlySelectedROM                           ; get current ROM number into X  $^$ 0xdc0b
+    STY .currentlySelectedROM                           ; store new number  $^$ 0xdc0d
+    STY .romSelectRegister                              ; switch the ROM into the memory map  $^$ 0xdc0f
+    LDY #0                                              ; get current PHROM address  $^$ 0xdc12
+    LDA (.romAddressLow),Y                              ; and get byte  $^$ 0xdc14
     ; fall through...
 
 ; ***************************************************************************************
@@ -10518,9 +10518,9 @@
 ;
 ; ***************************************************************************************
 .selectROM
-    STX .currentlySelectedROM                           ; RAM copy of current ROM
-    STX .romSelectRegister                              ; switch the ROM into the memory map
-    RTS                                                 ;
+    STX .currentlySelectedROM                           ; RAM copy of current ROM  $^$ 0xdc16
+    STX .romSelectRegister                              ; switch the ROM into the memory map  $^$ 0xdc18
+    RTS                                                 ;  $^$ 0xdc1b
 
 
 
@@ -10821,7 +10821,7 @@
 ; Check if the System VIA triggered the interrupt and deal with it.
 ; ***************************************************************************************
 .irq1CheckSystemVIA
-    LDA .systemVIAInterruptFlagRegister                 ; read system VIA interrupt flag register  $^$ 0xdd06
+    LDA .                ; read system VIA interrupt flag register  $^$ 0xdd06
     BPL .irq1CheckUserVIA                               ; if (the System VIA has not caused interrupt) then branch (try the next thing)  $^$ 0xdd09
 
     AND .systemVIAIRQBitMask                            ; mask with VIA bit mask (normally $FF)  $^$ 0xdd0b

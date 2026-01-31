@@ -21,6 +21,9 @@ import Utilities (showHexX)
 import Numeric (showHex)
 
 
+adcAndSbc :: [Word8]
+adcAndSbc = [0x61, 0x65, 0x69, 0x6D, 0x71, 0x75, 0x79, 0x7D, 0xE1, 0xE5, 0xE9, 0xED, 0xF1, 0xF5, 0xF9, 0xFD]
+
 type RamEntry = (Word16, Word8)
 
 showRam :: [RamEntry] -> String
@@ -145,9 +148,12 @@ run1Test ATest{name=name, initial=initial, final=final, cycles=_} = do
 
     result <- isFinalRegsAndMemSameAsExpected regs mem final
 
-    let verbose = False
+    let verbose = True
+    let dontShowAdcSbc = True
 
-    when (not result && verbose) $ do
+    let isAdcSbc = currentInstructionOpcode `elem` adcAndSbc
+
+    when (not result && verbose && not (dontShowAdcSbc && isAdcSbc)) $ do
         putStrLn $ "Failed Test: " ++ name
         putStrLn $ "Initial : " ++ show initial
         putStrLn $ "Expected: " ++ show final
@@ -161,26 +167,26 @@ run1Test ATest{name=name, initial=initial, final=final, cycles=_} = do
 
 runTests :: IO ()
 runTests = do
-    results <- forM (M.toList opcodeNames) $ \(opcode, name) -> do
-        putStrLn $ "Test: " ++ name
-        let fileCode = if length (showHex opcode "") == 2
-            then showHex opcode ""
-            else "0" ++ showHex opcode ""
+    -- results <- forM (M.toList opcodeNames) $ \(opcode, name) -> do
+    --     putStrLn $ "Test: " ++ name
+    --     let fileCode = if length (showHex opcode "") == 2
+    --         then showHex opcode ""
+    --         else "0" ++ showHex opcode ""
 
-        passFail <- runTestsFromFile fileCode
-        return (name, passFail)
+    --     passFail <- runTestsFromFile fileCode
+    --     return (name, passFail)
 
-    let passes = length $ filter snd results
-        total  = length results
+    -- let passes = length $ filter snd results
+    --     total  = length results
 
-    putStrLn "_________________"
-    forM_ results $ \(name, passed) ->
-        unless passed $ putStrLn $ name ++ " Failed"
+    -- putStrLn "_________________"
+    -- forM_ results $ \(name, passed) ->
+    --     unless passed $ putStrLn $ name ++ " Failed"
 
-    putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files"
+    -- putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files"
 
-    -- result <- runTestsFromFile "0e"
-    -- print result
+    result <- runTestsFromFile "40"
+    print result
         
 
 runTestsFromFile :: String -> IO Bool

@@ -3,7 +3,7 @@ module CPU6502 where
 import MemoryRegisters (initMemory, readMemory, writeMemory, Memory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters, sysvia) 
 import LoadRom (loadRom)
 import Debug ( DebugState(..), handleInput, debuggerLineOutput, manageSimulatedKeyPress)
-import Sysvia ( sysviaPoll, Sysvia (irqPendingFlag) )
+import Sysvia ( sysviaPoll, Sysvia (irqPendingFlag), doInterruptCheck )
 
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
@@ -11,7 +11,7 @@ import Data.Bits ( Bits((.|.), testBit, complement, (.&.), shiftL, shiftR, xor))
 import Data.IORef (IORef, readIORef, modifyIORef', writeIORef)
 import Control.Monad (unless, when)
 import qualified Data.Vector as IBVector
-import Utilities (showHexX)
+import Utilities (showHexF)
 
 cpuInit :: IO (Memory, CPURegs)
 cpuInit = do
@@ -59,7 +59,8 @@ runInstructions mem regs count = loop 0 --replicateM might be cleaner here
                 let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
                 instr mem regs
 
-                sysviaPoll (sysvia mem) 5
+                sysviaPoll (sysvia mem) 2
+                doInterruptCheck (sysvia mem)
                 doIRQfromSysvia mem regs
                 loop (n+1)
 
@@ -82,7 +83,7 @@ runInstructionsDebug mem regs count = loop 0 --dbs
 
                 -- get user input
                 newDebugState <- if pause
-                    then do 
+                    then do
                         handleInput mem regs debugState
 
                     else return debugState
@@ -92,23 +93,17 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                 --print simKP
 
                 when (simKP == 2) $ manageSimulatedKeyPress mem
-                when (simKP == 1) $ do 
-                    manageSimulatedKeyPress mem-- >> irq mem regs
-                    putStrLn "Hi i did IRQ"
+                when (simKP == 1) $ do
+                    manageSimulatedKeyPress mem
 
                 -- run current instruction
                 pcVal <- readIORef (pc regs)
                 currentInstructionOpcode <- readMemory mem pcVal
                 let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
 
-                opr1 <- readMemory mem (pcVal+1)
-                opr2 <- readMemory mem (pcVal+2)
-                when ((opr1 == 0x4E) && (opr2 ==0xFE)) $
-                    putStrLn "accessing ier stop here"
-
                 instr mem regs
-                
-                sysviaPoll (sysvia mem) 5
+                sysviaPoll (sysvia mem) 2
+                doInterruptCheck (sysvia mem)
                 doIRQfromSysvia mem regs                
 
                 -- next instruction
@@ -333,7 +328,9 @@ opcodeTable = IBVector.generate 256 assign
         -- Read Two Bytes helper function ???
 
 instrUnimplemented :: Memory -> CPURegs -> IO ()
-instrUnimplemented _ _ = putStrLn "unimplementedFunction"
+instrUnimplemented _ regs = do
+    pcVal <- readIORef (pc regs)
+    putStrLn $ "unimplementedFunction at " ++ showHexF pcVal
 
 instrTest1 :: Memory -> CPURegs -> IO ()
 instrTest1 _ _ = putStrLn "Test1"
@@ -885,6 +882,7 @@ sec _ _ regs _ = do
 -- set decimal (BCD arithmetics enabled)
 sed :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 sed _ _ regs _ = do
+    putStrLn "DECIMAL MODE SET!!!!!!!!!"
     srWriteDecimalMode (statusReg regs) True
 
 -- set interrupt disable
@@ -1118,7 +1116,6 @@ irqVector = 0xFFFE
 -- IRQ interrupt
 irqShared :: Memory -> CPURegs -> IO ()
 irqShared mem regs = do
-    print "Hi I from IRQ"
     pCounter <- readIORef (pc regs)
 
     let returnAddress = pCounter
@@ -1127,7 +1124,7 @@ irqShared mem regs = do
         lowByte  = fromIntegral returnAddress               :: Word8
     
     sr <- readIORef (statusReg regs)
-    let correctedSrVal = sr .|. 0x30 -- ensure break and unused are set
+    let correctedSrVal = sr .|. 0x20 -- ensure break and unused are set
 
     pushStack mem regs highByte
     pushStack mem regs lowByte
@@ -1136,19 +1133,17 @@ irqShared mem regs = do
     srWriteInterruptDisable (statusReg regs) True
 
     lowByte2 <- readMemory mem irqVector
-    highByte2 <- readMemory mem (irqVector + 1)
+    highByte2 <- readMemory mem (irqVector + 1) --What if it overflows????????????update lowbyte???
 
     let jumpAddress :: Word16
         jumpAddress = (fromIntegral highByte2 :: Word16) `shiftL` 8 + (fromIntegral lowByte2 :: Word16)
-
-    putStrLn $ "I jump too: " ++ showHexX jumpAddress
 
     writeIORef (pc regs) jumpAddress
 
 irq :: Memory -> CPURegs -> IO ()
 irq mem regs = do
+    srWriteBreak (statusReg regs) False
     irqShared mem regs
-    srWriteBreak (statusReg regs) True
 
 -- break: Software IRQ
 brk :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
@@ -1156,16 +1151,21 @@ brk _ mem regs = do
 
     pcVal <- readIORef (pc regs)
     writeIORef (pc regs) (pcVal + 2)
-    irqShared mem regs
     srWriteBreak (statusReg regs) True
+    irqShared mem regs
 
 -- Return From Interrupt
 rti :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
 rti _ mem regs _ = do
-    sr <- pullStack mem regs
+    srPushed <- pullStack mem regs
     lowByte <- pullStack mem regs
     highByte <- pullStack mem regs
-    let returnAddress = fromIntegral (highByte `shiftL` 8) + fromIntegral lowByte + 1
+    let returnAddress = (fromIntegral highByte `shiftL` 8) + fromIntegral lowByte
 
-    writeIORef (statusReg regs) sr
+    -- keep break and unused at their current value
+    srCurrent <- readIORef (statusReg regs)
+    let mask = complement 0x30
+        correctedSrVal = (srCurrent .&. 0x30) .|. (srPushed .&. mask)
+
+    writeIORef (statusReg regs) correctedSrVal
     writeIORef (pc regs) returnAddress

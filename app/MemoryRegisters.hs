@@ -16,7 +16,7 @@ data Memory = Memory {m :: MUVector.IOVector Word8, sysvia :: Sysvia}
 readMemory :: Memory -> Word16 -> IO Word8
 readMemory mem address =
     if address .&. 0xFFF0 == 0xFE40 then do
-        putStrLn $ "a via address was read " ++ showHexF address
+        --putStrLn $ "a via address was read " ++ showHexF address
         readSysvia (sysvia mem) address
     else
         MUVector.read (m mem) (fromIntegral address)
@@ -42,7 +42,7 @@ readMemory mem address =
 writeMemory :: Memory -> Word16 -> Word8 -> IO ()
 writeMemory mem address value =
     if address .&. 0xFFF0 == 0xFE40 then do
-        putStrLn $ "a via address was written " ++ showHexF address
+        --putStrLn $ "a via address was written " ++ showHexF address
         writeSysvia (sysvia mem) address value
     else
         MUVector.write (m mem) (fromIntegral address) value

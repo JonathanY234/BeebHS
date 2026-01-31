@@ -30,10 +30,6 @@ def posOfNextInstr(currentIdx: int) -> int:
     return currentIdx + size
 
 def posOfNextInstrLinearSearch(currentInstr: int, opcodes: list[int]) -> int:
-    # #hack fix
-    # if mnemonic == 'INC':
-    #     opcodes = mne_to_opcodes['INC']
-    # #end
 
     nextInstr = currentInstr + 1
     if currentInstr == 7130 or currentInstr == 0x2267:
@@ -67,8 +63,8 @@ def romStartFrom(chapter: int) -> int:
 print(f"sum of chapters {sum(chapterSizes)}")
 
 filepath = "app/CPU6502.hs"
-opcodeTableStart = 159
-opcodeTableEnd = 310
+opcodeTableStart = 180 -1
+opcodeTableEnd = 330
 
 
 opcode_to_size = {}
@@ -141,12 +137,10 @@ def annotateChapter(chapterNo: int):
 
     if chapterNo == 4: #account for the table of chars
         rom_idx += 752
-    elif chapterNo == 10 or chapterNo == 18 or chapterNo == 19: # i should fix these
+    elif chapterNo == 18 or chapterNo == 19: # i should fix these
         skipChapter = True
     elif chapterNo == 22: # this one is just credits
         skipChapter = True
-    # elif chapterNo == 6:
-    #     rom_idx = 0xB1D
 
     #seek to the start of the chapter
     
@@ -168,8 +162,6 @@ def annotateChapter(chapterNo: int):
     lines_in_chapter = disasm_lines[chapter_start:chapter_end]
 
     for line in lines_in_chapter:
-        if rom_idx == 0x2263:
-            print("hi")
 
         code_part = line.split(";", 1)[0] # dont allow matches in comments
         match = mnemonic_re.search(code_part)
@@ -178,9 +170,6 @@ def annotateChapter(chapterNo: int):
             continue # doesnt contain code 
 
         mnemonic = match.group(1)
-
-        # if chapterNo == 10 and mnemonic == 'INC':
-        #     print("hi")
         
         possible_opcodes = getOpcodes(mnemonic)# Need to handle multiple possible opcodes for one mnemonic for each addressing mode
 

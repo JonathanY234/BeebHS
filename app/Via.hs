@@ -13,16 +13,13 @@ data Via = Via {ora :: IORef Word8, orb :: IORef Word8, ira :: IORef Word8, irb 
                 sr :: IORef Word8,
                 ca2 :: IORef Bool, cb2 :: IORef Bool,-- cb1 :: IORef Int, cb2 :: IORef Int,
                 srMode :: IORef Int}
-                
-                -- keyboardMatrix :: IORef (IBVector.Vector Bool),
-                -- sysviaOnly :: SysviaOnly}
 
 initVia :: IO Via
 initVia = do
     oraRef           <- newIORef 0xFF
     orbRef           <- newIORef 0xFF
-    iraRef           <- newIORef 0xFF
-    irbRef           <- newIORef 0xFF
+    iraRef           <- newIORef 0x00
+    irbRef           <- newIORef 0x00
     ddraRef          <- newIORef 0
     ddrbRef          <- newIORef 0
     acrRef           <- newIORef 0

@@ -15,6 +15,7 @@ import Data.Char (toUpper)
 import Data.Bits (Bits(testBit))
 import Data.List (delete)
 import qualified Data.Vector as IBVector
+import Text.Read (readMaybe)
 
 showMemoryPage :: Memory -> Word8 -> IO ()
 showMemoryPage memory pageNum = do
@@ -46,7 +47,7 @@ printRegs regs = do
     y'  <- readIORef (y regs)
     sp' <- readIORef (stackP regs)
     sr' <- readIORef (statusReg regs)
-    putStrLn $ "PC=" ++ showHexX pc' ++ " A=" ++ showHexX a' ++ " X=" ++ showHexX x' ++ " Y=" ++ showHexX y' ++ " SP=" ++ showHexX sp' ++ " SR=" ++ showStatusReg sr'
+    putStrLn $ "PC=" ++ showHexF pc' ++ " A=" ++ showHexF a' ++ " X=" ++ showHexF x' ++ " Y=" ++ showHexF y' ++ " SP=" ++ showHexF sp' ++ " SR=" ++ showStatusReg sr'
 
 -- showStatusReg :: Word8 -> String
 -- showStatusReg w = [if testBit w i then '1' else '0' | i <- [7,6..0]]
@@ -151,7 +152,6 @@ handleInput mem regs debugState@(DebugState bps _ _ simKP) = do
             showMemoryPage mem pageIndex
             handleInput mem regs debugState
         "PQ" -> do
-            print "hi"
             handleInput mem regs debugState { simulatedKeyPress = 1 }
             -- if simKP == 0
             --     then handleInput mem regs debugState { simulatedKeyPress = 1 } -- fix
@@ -173,18 +173,25 @@ getValidInput = do
 
     rawInput <- words <$> getLine
 
-    (command, value :: Int, numErr) <- case rawInput of
-        [] -> return ("", 0, True)
-        [cmd] -> return (map toUpper cmd, 2, True)
+    (command, mHex, mDec, str) <- case rawInput of
+        [] ->
+            return ("", Nothing, Nothing, "")
+
+        [cmd] ->
+            return (map toUpper cmd, Nothing, Nothing, "")
+
         (cmd:val:_) ->
-            case parseHex val of
-                Just n  -> return (map toUpper cmd, n, False)
-                Nothing -> return (map toUpper cmd, 2, True)
+            return
+                ( map toUpper cmd
+                , parseHex val
+                , readMaybe val
+                , val
+                )
             where
                 parseHex :: String -> Maybe Int
                 parseHex s = case readHex s of
-                    [(n, "")] | n >= 0 -> Just n
-                    _ -> Nothing
+                    [(n, "")] -> Just n
+                    _         -> Nothing
 
     let commandShort = case command of
             "CONTINUE"          -> "C"
@@ -203,47 +210,43 @@ getValidInput = do
     case commandShort of
         "C" -> return (commandShort, 0)
         "R" -> return (commandShort, 0)
-
         "S" ->
-            if value == 0 then
-                putStrLn "Cannot step 0" >> getValidInput
-            else if numErr then
-                case rawInput of
-                    [_] -> return (commandShort, 1)
-                    _   -> putStrLn "Not a valid number" >> getValidInput
-            else
-                return (commandShort, read (rawInput !! 1)) -- messy but works, we need decimal value and know that input is already checked valid
+            case mDec of
+                Just n  -> 
+                    if n == 0
+                        then putStrLn "Cannot step 0" >> getValidInput
+                        else return (commandShort, n)
+                Nothing ->
+                    if str == ""
+                        then return (commandShort, 1) -- no step input default to 1
+                        else putStrLn "Not a valid number" >> getValidInput
 
         "B" ->
-            if numErr then
-                putStrLn "Not a valid number" >> getValidInput
-            else if value > 0xFFFF then
-                putStrLn "Value out of range" >> getValidInput
-            else
-                return (commandShort, value)
+            case mHex of
+                Just n  -> if n > 0xFFFF 
+                    then putStrLn "Value out of range" >> getValidInput
+                    else return (commandShort, n)
+                Nothing -> putStrLn "Not a valid number" >> getValidInput
         "BR" ->
-            if numErr then
-                putStrLn "Not a valid number" >> getValidInput
-            else if value > 0xFFFF then
-                putStrLn "Value out of range" >> getValidInput
-            else
-                return (commandShort, value)
+            case mHex of
+                Just n  -> if n > 0xFFFF 
+                    then putStrLn "Value out of range" >> getValidInput
+                    else return (commandShort, n)
+                Nothing -> putStrLn "Not a valid number" >> getValidInput
         "BS" -> return (commandShort, 0)
         "M" ->
-            if numErr then
-                putStrLn "Not a valid number" >> getValidInput
-            else if value > 0xFFFF then
-                putStrLn "Value out of range" >> getValidInput
-            else
-                return (commandShort, value)
-        "PQ" -> return (commandShort, value)
+            case mHex of
+                Just n  -> if n > 0xFFFF 
+                    then putStrLn "Value out of range" >> getValidInput
+                    else return (commandShort, n)
+                Nothing -> putStrLn "Not a valid number" >> getValidInput
+        "PQ" -> return (commandShort, 0)
         "J" ->
-            if numErr then
-                putStrLn "Not a valid number" >> getValidInput
-            else if value > 0xFFFF then
-                putStrLn "Value out of range" >> getValidInput
-            else
-                return (commandShort, value)
+            case mHex of
+                Just n  -> if n > 0xFFFF 
+                    then putStrLn "Value out of range" >> getValidInput
+                    else return (commandShort, n)
+                Nothing -> putStrLn "Not a valid number" >> getValidInput
         "H" -> return (commandShort, 0)
         "RS" -> return (commandShort, 0)
         _ ->
@@ -308,12 +311,12 @@ printSysviaRegs mem = do
     t2cVal <- readIORef (timer2c v)
     ierVal <- readIORef (ier v)
     ifrVal <- readIORef (ifr v)
-    putStrLn "System VIA registers :"
-    putStrLn $ "ORA  " ++ showHexF oraVal ++ " ORB  " ++ showHexF orbVal ++ " IRA " ++ showHexF iraVal ++ " IRB " ++ showHexF irbVal
-    putStrLn $ "DDRA " ++ showHexF ddraVal ++ " DDRB " ++ showHexF ddrbVal ++ " ACR " ++ showHexF acrVal ++ " PCR " ++ showHexF pcrVal
-    putStrLn $ "Timer 1 Latch " ++ show t1lVal ++ "  count " ++ show t1cVal --timers and latches not shown in hex
-    putStrLn $ "Timer 2 Latch " ++ show t2lVal ++ "  count " ++ show t2cVal
-    putStrLn $ "IER " ++ showHexF ierVal ++ " IFR " ++ showHexF ifrVal
+    putStrLn "    System VIA registers :"
+    putStrLn $ "    ORA  " ++ showHexF oraVal ++ " ORB  " ++ showHexF orbVal ++ " IRA " ++ showHexF iraVal ++ " IRB " ++ showHexF irbVal
+    putStrLn $ "    DDRA " ++ showHexF ddraVal ++ " DDRB " ++ showHexF ddrbVal ++ " ACR " ++ showHexF acrVal ++ " PCR " ++ showHexF pcrVal
+    putStrLn $ "    Timer 1 Latch " ++ showHexF t1lVal ++ "  count " ++ showHexF t1cVal
+    putStrLn $ "    Timer 2 Latch " ++ showHexF t2lVal ++ "  count " ++ showHexF t2cVal
+    putStrLn $ "    IER " ++ showHexF ierVal ++ " IFR " ++ showHexF ifrVal
 
 manageSimulatedKeyPress :: Memory -> IO ()
 manageSimulatedKeyPress mem = do
