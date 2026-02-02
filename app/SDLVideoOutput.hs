@@ -27,7 +27,7 @@ initVideo = do
     -- Options: ScaleNearest, ScaleLinear, ScaleBest
     SDL.HintRenderScaleQuality SDL.$= SDL.ScaleNearest
 
-    window <- SDL.createWindow (Data.Text.pack "BBCulator") SDL.defaultWindow {SDL.windowInitialSize = SDL.V2 (screenWidth + 2 * borderSize) (screenHeight + 2 * borderSize), SDL.windowResizable = True}
+    window <- SDL.createWindow (Data.Text.pack "BeebHS") SDL.defaultWindow {SDL.windowInitialSize = SDL.V2 (screenWidth + 2 * borderSize) (screenHeight + 2 * borderSize), SDL.windowResizable = True}
     renderer <- SDL.createRenderer window (-1) SDL.defaultRenderer
     texture <- SDL.createTexture renderer SDL.RGBA8888 SDL.TextureAccessStreaming (SDL.V2 (screenWidth + 2 * borderSize) (screenHeight + 2 * borderSize))
 
@@ -40,7 +40,7 @@ initVideo = do
 
     return ctxt
 
-eventLoop :: IO (Bool, Bool)
+eventLoop :: IO Bool
 eventLoop = do
     events <- SDL.pollEvents
     let quit = SDL.QuitEvent `elem` map SDL.eventPayload events
@@ -54,7 +54,7 @@ eventLoop = do
         qPressed = any eventIsQPress events
     when qPressed $ putStrLn "Q pressed"
 
-    return (quit, qPressed)
+    return quit
 
 renderMode7Frame :: SDLContext -> IBVector.Vector [[Bool]] -> [Word8] -> IO ()
 renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVector letterIndexes = do

@@ -1,4 +1,4 @@
-# Revision history for bbculator
+# Revision history for BeebHS
 
 ## 0.1.0.0 -- YYYY-mm-dd
 

@@ -37,7 +37,7 @@ main = do
     
     let mainLoop :: DebugState -> IO ()
         mainLoop debugState = do
-            (quit, qPressed) <- eventLoop
+            quit <- eventLoop
             updateKeyboardMatrix mem
 
             unless quit $ do
