@@ -1,6 +1,6 @@
 module KeyboardInput where
 
-import Sysvia (kbdMatrixCols, kbdMatrixRows, keyboardMatrix)
+import Sysvia (kbdMatrixRows, keyboardMatrix, kbdMatrixCols)
 import MemoryRegisters (Memory, sysvia)
 
 import Data.IORef (readIORef, writeIORef)
@@ -63,7 +63,39 @@ keyMapping =
         (SDL.ScancodeK, (4, 6)),
         -- , (SDL.Scancode@,  (4, 7))
         -- , (SDL.ScancodeColon,  (4, 8))
-        (SDL.ScancodeReturn, (4, 9))
+        (SDL.ScancodeReturn, (4, 9)),
+        (SDL.ScancodeLShift, (5, 0)),
+        (SDL.ScancodeS, (5, 1)),
+        (SDL.ScancodeC, (5, 2)),
+        (SDL.ScancodeG, (5, 3)),
+        (SDL.ScancodeH, (5, 4)),
+        (SDL.ScancodeN, (5, 5)),
+        (SDL.ScancodeL, (5, 6)),
+        (SDL.ScancodeSemicolon,  (5, 7)),
+        (SDL.ScancodeRightBracket,  (5, 8)),
+        (SDL.ScancodeBackspace, (5, 9)),
+
+        (SDL.ScancodeTab, (6, 0)),
+        (SDL.ScancodeZ, (6, 1)),
+        (SDL.ScancodeSpace, (6, 2)),
+        (SDL.ScancodeV, (6, 3)),
+        (SDL.ScancodeB, (6, 4)),
+        (SDL.ScancodeM, (6, 5)),
+        (SDL.ScancodeComma, (6, 6)), -- This thing <
+        (SDL.ScancodeStop,  (6, 7)), -- >
+        (SDL.ScancodeSlash,  (6, 8)),
+        (SDL.ScancodeCopy, (6, 9)),
+
+        (SDL.ScancodeEscape, (7, 0)),
+        (SDL.ScancodeF1, (7, 1)),
+        (SDL.ScancodeF2, (7, 2)),
+        (SDL.ScancodeF3, (7, 3)),
+        (SDL.ScancodeF5, (7, 4)),
+        (SDL.ScancodeF6, (7, 5)),
+        (SDL.ScancodeF8, (7, 6)),
+        (SDL.ScancodeF9,  (7, 7)),
+        (SDL.ScancodeBackslash,  (7, 8)),
+        (SDL.ScancodeRight, (7, 9))
     ]
 
 updateKeyboardMatrix :: Memory -> IO ()

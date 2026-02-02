@@ -12,7 +12,7 @@ import Data.Foldable (forM_)
 
 -- should this really go here?
 kbdMatrixRows, kbdMatrixCols :: Int
-kbdMatrixRows = 8
+kbdMatrixRows = 10 --8?
 kbdMatrixCols = 10
 
 data Sysvia = Sysvia {via :: Via, srTrigger :: IORef Int, sdbVal :: IORef Word8,
@@ -41,12 +41,8 @@ initSysvia = do
 readViaF :: Sysvia -> (Via -> IORef a) -> IO a
 readViaF sv fieldGetter = readIORef (fieldGetter (via sv))
 writeViaF :: Sysvia -> (Via -> IORef a) -> a -> IO ()
-writeViaF sv fieldSetter value = do
-    oldIerVal <- readViaF sv ier
-    writeIORef (fieldSetter (via sv)) value
-    newIerVal <- readIORef (ier (via sv))
-    when (oldIerVal /= newIerVal) $
-        putStrLn "Ier Changed!!!!!"
+writeViaF sv fieldSetter = writeIORef (fieldSetter (via sv))
+
 
 modifyViaF :: Sysvia -> (Via -> IORef a) -> (a -> a) -> IO ()
 modifyViaF sv field = modifyIORef' (field (via sv))
@@ -59,11 +55,9 @@ updateIFRTopBit svia = do
     if (ifrVal .&. (ierVal .&. 0x7F)) /=0 then do
         modifyViaF svia ifr (.|. ifr_irq)
         modifyIORef' (intStatus svia) (`setBit` 0)
-        --putStrLn "Hi from updateIFRTopBit i set intStatus"
     else do
         modifyViaF svia ifr (.&. complement ifr_irq)
         modifyIORef' (intStatus svia) (`clearBit` 0)
-        --putStrLn "Hi from updateIFRTopBit i clear intStatus"
 
 -- temp
 printKeyboardMatrix :: Sysvia -> IO ()
@@ -81,40 +75,32 @@ doKbdIntCheck svia = do
     kbdMatrVal <- readIORef (keyboardMatrix svia)
     let anyKeyPressed = IBVector.any id kbdMatrVal
 
-    --putStrLn $ "hi from doKbdIntCheck. Was an key pressed: " ++ show anyKeyPressed
-    --printKeyboardMatrix  svia
-
     pcrVal <- readViaF svia pcr
 
     when (anyKeyPressed && (pcrVal .&. 0x0C) == 4) $ do
         ic32StateVal <- readIORef (ic32State svia)
-        --if ic32StateVal .&. ic32_keyboard_write /=0 then do
-        -- hack fix
-        if 1 == 1 then do
-            --putStrLn "if path"
+
+        if (ic32StateVal .&. ic32_keyboard_write) /=0 then do -- autoscan mode
             modifyViaF svia ifr (.|. ifr_ca2)
             updateIFRTopBit svia
-        else do
-            putStrLn "else path"
+        else do                                               -- scan specific key mode
             kbdColVal <- readIORef (kbdCol svia)
             when (kbdColVal < kbdMatrixCols) $ do
 
             -- kbdMatrixRows = 8
             -- kbdMatrixCols = 10
-
                 when (keyPressedInColumn kbdMatrVal kbdColVal) $ do
-                    putStrLn "actually the right column"
+
                     modifyViaF svia ifr (.|. ifr_ca2)
                     updateIFRTopBit svia
     where
         keyPressedInColumn :: IBVector.Vector Bool -> Int -> Bool
-        keyPressedInColumn kbd col =
-            any (\row -> kbd IBVector.! (col * 8 + row)) [1..7]
-    
+        keyPressedInColumn kbd col = do
+            any (\row -> kbd IBVector.! (row * kbdMatrixCols + col)) [0..7]
+
 
 kbdOP :: Sysvia -> IO Bool
 kbdOP svia = do
-    --no IORef writes here
     kbdColVal <- readIORef (kbdCol svia)
     kbdRowVal <- readIORef (kbdRow svia)
     kbdMatrVal <- readIORef (keyboardMatrix svia)
@@ -122,7 +108,7 @@ kbdOP svia = do
     if kbdColVal > (kbdMatrixCols-1) || kbdRowVal > (kbdMatrixRows-1) then-- range check
         return False
     else
-        return $ kbdMatrVal IBVector.! (kbdColVal * kbdMatrixCols + kbdRowVal)
+        return $ kbdMatrVal IBVector.! (kbdRowVal * kbdMatrixCols + kbdColVal)
 
 ic32Write :: Sysvia -> Word8 -> IO ()
 ic32Write svia val = do
@@ -133,9 +119,9 @@ ic32Write svia val = do
 
     let (bit :: Int) = fromIntegral val .&. 7
     if (val .&. 8) /=0 then
-        modifyIORef' (ic32State svia) (.|. 1 `shiftL` bit)
+        modifyIORef' (ic32State svia) (.|. (1 `shiftL` bit))
     else
-        modifyIORef' (ic32State svia) (.&. 1 `shiftL` bit)
+        modifyIORef' (ic32State svia) (.&. complement (1 `shiftL` bit))
 
     ic32StateVal <- readIORef (ic32State svia)
 
@@ -160,17 +146,15 @@ slowDataBusRead :: Sysvia -> IO Word8
 slowDataBusRead svia = do
     oraVal <- readViaF svia ora
     ddraVal <- readViaF svia ddra
-    let result = oraVal .&. complement ddraVal
+    let result = oraVal .&. ddraVal
 
     ic32StateVal <- readIORef (ic32State svia)
     --speech?
 
     kbdOPVal <- kbdOP svia
     if ((ic32StateVal .&. ic32_keyboard_write) == 0) && kbdOPVal
-        then return $ result .&. 128
+        then return $ result .|. 128
         else return result
-
--- the actual sysvia read and write functions
 
 --WRITE SYSVIA
 writeSysvia :: Sysvia -> Word16 -> Word8 -> IO ()
@@ -373,7 +357,6 @@ sysviaPollReal :: Sysvia -> IO ()
 sysviaPollReal svia = do
     -- simplified
     timer1cVal <- readViaF svia timer1c
-    --putStrLn $ "timer1cVal is: " ++ show timer1cVal
 
     acrVal <- readViaF svia acr
     when (timer1cVal <= (-2)) $ do
@@ -397,7 +380,6 @@ sysviaPollReal svia = do
 
 
         --timer1cVal2 <- readViaF svia timer1c
-        --putStrLn $ "also timer1c now has value of: " ++ show timer1cVal2
 
     -- do timer2c as well
 
@@ -427,17 +409,16 @@ doInterruptCheck :: Sysvia -> IO ()
 doInterruptCheck svia = do
     irqPendingFlagVal <- readIORef (irqPendingFlag svia)
 
-    
+
 
     intStatusVal <- readIORef (intStatus svia)
 
     unless irqPendingFlagVal $ do
         previousIntStatusVal <- readIORef (previousIntStatus svia)
 
-
         let irqPending = (intStatusVal /= 0) && previousIntStatusVal == 0 --rising edge detector
-        when irqPending $ putStrLn "Hi from doInterrupt check i triggered an interrupt"
-        writeIORef (irqPendingFlag svia) irqPending
+        when irqPending $ do
+            writeIORef (irqPendingFlag svia) irqPending
     writeIORef (previousIntStatus svia) intStatusVal
 
 

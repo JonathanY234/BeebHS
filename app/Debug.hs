@@ -2,7 +2,7 @@ module Debug where
 
 import MemoryRegisters (Memory (sysvia), readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg))
 import Utilities (showHexX, showHexF)
-import Sysvia (kbdMatrixRows, kbdMatrixCols, Sysvia (keyboardMatrix, via))
+import Sysvia (kbdMatrixRows, kbdMatrixCols, Sysvia (keyboardMatrix, via), kbdMatrixCols)
 import Via (Via (pcr, ier, ddrb, ddra, timer1c, timer1l, orb, ira, irb, timer2c, acr, ora, timer2l, ifr))
 
 import System.IO (hFlush, stdout)
@@ -134,7 +134,7 @@ data DebugState = DebugState { breakpoints :: [Word16],  stepsRemaining :: Int, 
 
 -- processing input is pain
 handleInput :: Memory -> CPURegs -> DebugState -> IO DebugState
-handleInput mem regs debugState@(DebugState bps _ _ simKP) = do
+handleInput mem regs debugState@(DebugState bps _ _ _) = do
     (command, value) <- getValidInput -- assumes valid input recieved from this function
     case command of
         "C" -> return debugState { stepsRemaining = -1 }

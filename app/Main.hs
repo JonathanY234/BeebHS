@@ -11,7 +11,7 @@ import Control.Monad (unless, when, forM)
 import System.Environment (getArgs)
 import System.Exit (exitSuccess)
 
---temp
+-- --temp
 import Data.Word (Word16, Word8)
 import MemoryRegisters (Memory, readMemory)
 import KeyboardInput (updateKeyboardMatrix)
@@ -50,16 +50,6 @@ main = do
 
                 frame <- getMode7Frame mem
                 renderMode7Frame sdlCtxt m7Font frame
-
-                when qPressed $ do
-                    print qPressed
-                    -- fe43 <- readMemory mem 0xFE43
-                    -- print fe43
-                    --writeMemory mem 0xfe40 0x21
-                    -- writeMemory mem 0xfe41 0x52
-                    -- writeMemory mem 0xfe43 0x00
-                    -- writeMemory mem 0xfe4f 0x21
-                    -- irq mem regs
 
                 --threadDelay (1000000 `div` targetHz)
                 mainLoop newDebugState

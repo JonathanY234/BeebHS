@@ -332,11 +332,6 @@ instrUnimplemented _ regs = do
     pcVal <- readIORef (pc regs)
     putStrLn $ "unimplementedFunction at " ++ showHexF pcVal
 
-instrTest1 :: Memory -> CPURegs -> IO ()
-instrTest1 _ _ = putStrLn "Test1"
-execute0 :: Memory -> CPURegs -> IO ()
-execute0 _ _ = putStrLn "Execute0"
-
 -- __________Addressing Modes__________
 -- immediate        value is the value right there in the instruction
 immediate :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
@@ -1124,7 +1119,7 @@ irqShared mem regs = do
         lowByte  = fromIntegral returnAddress               :: Word8
     
     sr <- readIORef (statusReg regs)
-    let correctedSrVal = sr .|. 0x20 -- ensure break and unused are set
+    let correctedSrVal = sr .|. 0x20 -- ensure unused is set
 
     pushStack mem regs highByte
     pushStack mem regs lowByte
