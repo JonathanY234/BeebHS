@@ -12,7 +12,7 @@ import Data.Foldable (forM_)
 
 -- should this really go here?
 kbdMatrixRows, kbdMatrixCols :: Int
-kbdMatrixRows = 10 --8?
+kbdMatrixRows = 8
 kbdMatrixCols = 10
 
 data Sysvia = Sysvia {via :: Via, srTrigger :: IORef Int, sdbVal :: IORef Word8,
@@ -42,8 +42,6 @@ readViaF :: Sysvia -> (Via -> IORef a) -> IO a
 readViaF sv fieldGetter = readIORef (fieldGetter (via sv))
 writeViaF :: Sysvia -> (Via -> IORef a) -> a -> IO ()
 writeViaF sv fieldSetter = writeIORef (fieldSetter (via sv))
-
-
 modifyViaF :: Sysvia -> (Via -> IORef a) -> (a -> a) -> IO ()
 modifyViaF sv field = modifyIORef' (field (via sv))
 
@@ -86,9 +84,6 @@ doKbdIntCheck svia = do
         else do                                               -- scan specific key mode
             kbdColVal <- readIORef (kbdCol svia)
             when (kbdColVal < kbdMatrixCols) $ do
-
-            -- kbdMatrixRows = 8
-            -- kbdMatrixCols = 10
                 when (keyPressedInColumn kbdMatrVal kbdColVal) $ do
 
                     modifyViaF svia ifr (.|. ifr_ca2)

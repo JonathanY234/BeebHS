@@ -1,13 +1,16 @@
 module SDLVideoOutput where
 
-import Control.Monad (forM_, when)
+import Control.Monad (forM_)
 import Data.Text qualified
 import Data.Vector qualified as IBVector
-import Data.Word (Word8)
+import Data.Word (Word8, Word16)
 import Foreign.C.Types (CInt)
 import Foreign.Storable (pokeByteOff)
 import SDL qualified
 import SDL.Vect (V4 (..))
+
+import MemoryRegisters(Memory, readMemory)
+
 
 data SDLContext = SDLContext {window :: SDL.Window, renderer :: SDL.Renderer, texture :: SDL.Texture}
 
@@ -33,8 +36,6 @@ initVideo = do
 
     let ctxt = SDLContext window renderer texture
 
-    -- possibly temporary
-    SDL.rendererDrawColor renderer SDL.$= V4 0 128 255 255
     SDL.clear renderer
     SDL.present renderer
 
@@ -45,27 +46,23 @@ eventLoop = do
     events <- SDL.pollEvents
     let quit = SDL.QuitEvent `elem` map SDL.eventPayload events
 
-    let eventIsQPress event =
-            case SDL.eventPayload event of
-            SDL.KeyboardEvent keyboardEvent ->
-                SDL.keyboardEventKeyMotion keyboardEvent == SDL.Pressed
-                && SDL.keysymKeycode (SDL.keyboardEventKeysym keyboardEvent) == SDL.KeycodeQ
-            _ -> False
-        qPressed = any eventIsQPress events
-    when qPressed $ putStrLn "Q pressed"
-
     return quit
 
-renderMode7Frame :: SDLContext -> IBVector.Vector [[Bool]] -> [Word8] -> IO ()
-renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVector letterIndexes = do
+renderMode7Frame :: SDLContext -> IBVector.Vector [[Bool]] -> Memory -> Word16 -> IO ()
+renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVector mem startOffset = do
     _ <-
         SDL.lockTexture texture_ Nothing >>= \(pixelsPtr, pitch) -> do
-        let letterScreenCoords = [(x, y) | y <- [1 .. 25], x <- [1 .. 40]]
+        let letterScreenCoords = [(x, y) | y <- [0 .. 24], x <- [0 .. 39]]
+            videoMemStart = 0x7C00
 
-            drawLetter :: Word8 -> (Int, Int) -> IO ()
-            drawLetter letterIndex (cellX, cellY) = do
-                let trueX = (cellX - 1) * 16 + fromIntegral borderSize
-                    trueY = (cellY - 1) * 20 + fromIntegral borderSize
+            --letterIndex is what letter to draw within fontVector, (cellX, cellY) is the top left Screen coords
+            drawLetter :: (Word16, Word16) -> IO ()
+            drawLetter (cellX, cellY) = do
+
+                let idx = ((startOffset + videoMemStart) + cellY*40 + cellX) `mod` 1024
+                letterIndex <- readMemory mem (videoMemStart + idx)
+                let trueX = cellX * 16 + fromIntegral borderSize
+                    trueY = cellY * 20 + fromIntegral borderSize
                     charBitmap = fontVector IBVector.! fromIntegral (letterIndex - 0x20) -- -0x20 maps memory values to font indexed (temp solution)
                 forM_ (zip [0 ..] charBitmap) $ \(row, rowPixels) ->
                     forM_ (zip [0 ..] rowPixels) $ \(col, bit) -> do
@@ -75,7 +72,8 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
                                 if bit
                                     then V4 255 255 255 255 -- white
                                     else V4 0 0 0 255 -- black
-                        drawPixel px py colour
+                        drawPixel (fromIntegral px) (fromIntegral py) colour
+                drawPixel (fromIntegral trueX) (fromIntegral trueY) (V4 255 0 0 255)
 
             drawPixel :: Int -> Int -> V4 Word8 -> IO ()
             drawPixel x y (V4 red green blue alpha) = do
@@ -85,10 +83,7 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
                 pokeByteOff pixelsPtr (offset + 2) green
                 pokeByteOff pixelsPtr (offset + 3) red
 
-        mapM_ (uncurry drawLetter) (zip letterIndexes letterScreenCoords)
-    -- drawLetter 65 (1,1)
-    -- drawLetter 69 (40,1)
-    -- drawLetter 69 (1,25)
+        forM_ letterScreenCoords drawLetter
 
     SDL.unlockTexture texture_
 

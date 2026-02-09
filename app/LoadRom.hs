@@ -1,6 +1,6 @@
 module LoadRom where
 
-import MemoryRegisters (Memory, writeMemoryArrayOnly, changeInitialTimer1c)
+import MemoryRegisters (Memory, writeMemoryArrayOnly)
 
 import qualified Data.Vector as IBVector
 import qualified Data.ByteString as B
@@ -14,7 +14,9 @@ loadRom path codeOffset mem = withBinaryFile path ReadMode $ \fHandle -> do
     bytes <- B.unpack <$> B.hGetContents fHandle
     let bytesAndIndexes = zip ([codeOffset..] :: [Word16]) bytes
     forM_ bytesAndIndexes $ uncurry (writeMemoryArrayOnly mem)
-    changeInitialTimer1c mem
+
+-- clearScreenArea :: Memory -> IO ()
+-- clearScreenArea mem = do
 
 loadMode7Font :: FilePath -> Int -> IO (IBVector.Vector [[Bool]])
 loadMode7Font path headersize = withBinaryFile path ReadMode $ \fHandle -> do

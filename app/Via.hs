@@ -26,7 +26,7 @@ initVia = do
     pcrRef           <- newIORef 0
     ifrRef           <- newIORef 0
     ierRef           <- newIORef ier_set_clear
-    timer1cRef       <- newIORef 0
+    timer1cRef       <- newIORef 0x1000
     timer1lRef       <- newIORef 0xFFFF
     timer2cRef       <- newIORef 0
     timer2lRef       <- newIORef 0xFFFF

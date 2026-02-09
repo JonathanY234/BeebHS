@@ -19,7 +19,8 @@ cpuInit = do
     regs <- initRegisters 0 0 0 0 0xFF 0x20
 
     -- This is the 'machine operating system' in the upper quarter of address space
-    loadRom "roms/os12_bemdump.rom" 0xC000 mem
+    --loadRom "roms/os12_bemdump.rom" 0xC000 mem
+    loadRom "roms/os12.rom" 0xC000 mem
     -- Load the correct basic rom to the sideways rom area
     loadRom "roms/basic2.rom" 0x8000 mem
 
@@ -130,13 +131,6 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                     return newDebugState { pause = True, stepsRemaining = newStepsRem, simulatedKeyPress = newSimKP } -- yield to mainLoop
                 else loop (n+1) newDebugState { pause = False, stepsRemaining = newStepsRem, simulatedKeyPress = newSimKP }
 
-
-
--- __________Memory__________
--- Memory woz ere
-
--- __________Registers__________
--- Registers woz ere
 
 -- __________StatusReg Read Helpers__________
 srReadBit :: Word8 -> IORef Word8 -> IO Bool

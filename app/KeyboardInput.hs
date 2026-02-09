@@ -42,7 +42,7 @@ keyMapping =
         (SDL.ScancodeI, (2, 5)),
         (SDL.Scancode9, (2, 6)),
         (SDL.Scancode0, (2, 7)),
-        -- (SDL.Scancode£, (2, 8)),
+        -- (SDL.Scancode£, (2, 8)), -- £
         (SDL.ScancodeDown, (2, 9)),
         (SDL.Scancode1, (3, 0)),
         (SDL.Scancode2, (3, 1)),
@@ -61,8 +61,8 @@ keyMapping =
         (SDL.ScancodeY, (4, 4)),
         (SDL.ScancodeJ, (4, 5)),
         (SDL.ScancodeK, (4, 6)),
-        -- , (SDL.Scancode@,  (4, 7))
-        -- , (SDL.ScancodeColon,  (4, 8))
+        (SDL.ScancodeApostrophe,  (4, 7)), -- @
+        --(SDL.ScancodeSemicolon,  (4, 8)), -- :
         (SDL.ScancodeReturn, (4, 9)),
         (SDL.ScancodeLShift, (5, 0)),
         (SDL.ScancodeS, (5, 1)),
