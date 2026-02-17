@@ -6,15 +6,17 @@ import SDLVideoOutput (initVideo, endVideo, eventLoop, renderMode7Frame)
 import HarteCpuTests (runTests)
 import Debug (DebugState, DebugState(..))
 
---import Control.Concurrent (threadDelay)
+import System.Clock
+import Control.Concurrent (threadDelay)
 import Control.Monad (unless, when)
 import System.Environment (getArgs)
 import System.Exit (exitSuccess)
 
 import Data.Word (Word16)
-import MemoryRegisters (Memory, readMemory)
+import MemoryRegisters (Memory (cycleCount), readMemory)
 import KeyboardInput (updateKeyboardMatrix)
 import Data.Bits (Bits((.|.), shiftL))
+import Data.IORef (readIORef)
 
 main :: IO ()
 main = do
@@ -28,6 +30,9 @@ main = do
     --m7Font <- loadMode7Font "roms/original.fnt" 24
     m7Font <- loadMode7Font "roms/basicsdl.fnt" 28
     --let (targetHz :: Int) = 50
+
+    clockStart <- getTime Monotonic
+    
     (mem, regs) <- cpuInit
     sdlCtxt <- initVideo
 
@@ -41,19 +46,30 @@ main = do
                 newDebugState <- if isDebug
                     then runInstructionsDebug mem regs 10000 debugState
                     else do
-                        runInstructions mem regs 10000
+                        runInstructions mem regs 10000 -- make this function actually do cycles not instructions
                         return debugState -- value of debugState is not relevent here as not debugging
 
                 scrollAmount <- getScrollingAmount mem
                 renderMode7Frame sdlCtxt m7Font mem scrollAmount-- + 959)
 
+                -- slow down
+                cyclesPassed <- readIORef (cycleCount mem)
+                let idealElapsedNs = cyclesPassed * nanosecondsPerCycle
 
-                --threadDelay (1000000 `div` targetHz)
+                clockCurrent <- getTime Monotonic
+                let elapsedNs = toNanoSecs (clockCurrent - clockStart)
+                    timeCorrection = if idealElapsedNs > elapsedNs
+                                        then idealElapsedNs - elapsedNs
+                                        else 0
+                threadDelay (fromIntegral timeCorrection `div` 1000)
                 mainLoop newDebugState
 
     when isDebug $ debuggerStart mem regs
     mainLoop (DebugState [] 0 True 0)
     endVideo sdlCtxt
+
+nanosecondsPerCycle :: Integer
+nanosecondsPerCycle = 1000000000 `div` 2000000 -- = 500
 
 getScrollingAmount :: Memory -> IO Word16
 getScrollingAmount mem = do

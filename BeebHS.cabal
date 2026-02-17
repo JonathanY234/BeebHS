@@ -70,7 +70,8 @@ executable BeebHS
                       sdl2,
                       text,
                       containers,
-                      aeson
+                      aeson,
+                      clock
 
     -- Directories containing source files.
     hs-source-dirs:   app

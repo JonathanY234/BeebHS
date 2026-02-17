@@ -15,9 +15,9 @@ import qualified Data.Map as M
 
 
 import CPU6502 ( opcodeTable)
-import MemoryRegisters ( Memory, initMemory, writeMemory, readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters)
+import MemoryRegisters ( Memory (cycleCount), initMemory, writeMemory, readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters)
 import Debug (opcodeNames, showStatusReg, printRegs)
-import Utilities (showHexX)
+import Utilities (showHexF, showHexX)
 import Numeric (showHex)
 
 
@@ -28,13 +28,16 @@ type RamEntry = (Word16, Word8)
 
 showRam :: [RamEntry] -> String
 showRam entries = intercalate ", " $ map (\(addr, val) ->
-    showHexX addr ++ "=" ++ showHexX val) entries
+    showHexX addr ++ "=" ++ showHexF val) entries
 
 data CycleEntry = CycleEntry
     { address :: Int
     , value   :: Int
     , action  :: String
-    } deriving (Show, Generic)
+    } deriving (Generic)
+
+showCycles :: [CycleEntry] -> String
+showCycles entries = show (length entries)
 
 instance FromJSON CycleEntry where
     parseJSON = withArray "CycleEntry" $ \arr ->
@@ -57,11 +60,11 @@ data CpuState = CpuState
 
 instance Show CpuState where
     show cpu =
-        "PC=" ++ showHexX (pcState cpu) ++
-        " A="  ++ showHexX (accumulatorState cpu) ++
-        " X="  ++ showHexX (xState cpu) ++
-        " Y="  ++ showHexX (yState cpu) ++
-        " SP=" ++ showHexX (stackPState cpu) ++
+        "PC=" ++ showHexF (pcState cpu) ++
+        " A="  ++ showHexF (accumulatorState cpu) ++
+        " X="  ++ showHexF (xState cpu) ++
+        " Y="  ++ showHexF (yState cpu) ++
+        " SP=" ++ showHexF (stackPState cpu) ++
         " SR=" ++ showStatusReg (statusRegState cpu) ++
         " Memory= " ++ showRam (ram cpu)
 
@@ -83,7 +86,7 @@ data ATest = ATest
     , initial :: CpuState
     , final   :: CpuState
     , cycles  :: [CycleEntry]
-    } deriving (Show, Generic)
+    } deriving (Generic)
 
 instance FromJSON ATest
 
@@ -96,7 +99,7 @@ showMemoryNotZeroFormat mem =
             memVal <- readMemory mem pointer
             let newAcc = if memVal == 0
                             then output
-                            else showHexX pointer ++ "=" ++ showHexX memVal ++ ", " ++ output
+                            else showHexF pointer ++ "=" ++ showHexF memVal ++ ", " ++ output
             go (pointer + 1) newAcc
 
     in go 0 ""
@@ -110,8 +113,8 @@ loadInitialRegistersAndMem CpuState{pcState=iPc, accumulatorState=iA, xState=iX,
 
     return (regs, mem)
 
-isFinalRegsAndMemSameAsExpected :: CPURegs -> Memory -> CpuState -> IO Bool
-isFinalRegsAndMemSameAsExpected regs mem CpuState{pcState=fPc, accumulatorState=fA, xState=fX, yState=fY, stackPState=fSp, statusRegState=fSr, ram=memoryVals} = do
+isFinalRegsMemCyclesAsExpected :: CPURegs -> Memory -> CpuState -> Int -> IO Bool
+isFinalRegsMemCyclesAsExpected regs mem CpuState{pcState=fPc, accumulatorState=fA, xState=fX, yState=fY, stackPState=fSp, statusRegState=fSr, ram=memoryVals} expectedCycles = do
     pcVal <- readIORef (pc regs)
     aVal  <- readIORef (accumulator regs)
     xVal  <- readIORef (x regs)
@@ -133,10 +136,13 @@ isFinalRegsAndMemSameAsExpected regs mem CpuState{pcState=fPc, accumulatorState=
 
     memMatch <- allEqual 0
 
-    return (regsMatch && memMatch)
+    cyclesPassed <- readIORef (cycleCount mem)
+    let cyclesMatch = cyclesPassed == fromIntegral expectedCycles
+
+    return (regsMatch && memMatch && cyclesMatch)
 
 run1Test :: ATest -> IO Bool
-run1Test ATest{name=name, initial=initial, final=final, cycles=_} = do
+run1Test ATest{name=name, initial=initial, final=final, cycles=cycles} = do
 
     (regs, mem) <- loadInitialRegistersAndMem initial
 
@@ -146,22 +152,23 @@ run1Test ATest{name=name, initial=initial, final=final, cycles=_} = do
     let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
     instr mem regs
 
-    result <- isFinalRegsAndMemSameAsExpected regs mem final
+    result <- isFinalRegsMemCyclesAsExpected regs mem final (length cycles)
 
-    let verbose = True
+    let verbose = False
     let dontShowAdcSbc = True
 
     let isAdcSbc = currentInstructionOpcode `elem` adcAndSbc
 
     when (not result && verbose && not (dontShowAdcSbc && isAdcSbc)) $ do
+        actualCycles <- readIORef (cycleCount mem)
         putStrLn $ "Failed Test: " ++ name
         putStrLn $ "Initial : " ++ show initial
-        putStrLn $ "Expected: " ++ show final
+        putStrLn $ "Expected: " ++ show final ++ "   Cycles: " ++ showCycles cycles
 
         actualMemoryValues <- showMemoryNotZeroFormat mem
         putStr "Actual  : "
         printRegs regs
-        putStrLn $ "Memory= " ++ actualMemoryValues
+        putStrLn $ "Memory= " ++ actualMemoryValues ++ "   Cycles: " ++ show actualCycles
 
     return result
 
@@ -185,7 +192,7 @@ runTests = do
 
     putStrLn $ "Passed " ++ show passes ++ " out of " ++ show total ++ " test files"
 
-    -- result <- runTestsFromFile "40"
+    -- result <- runTestsFromFile "91"
     -- print result
         
 

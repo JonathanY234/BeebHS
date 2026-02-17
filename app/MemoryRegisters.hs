@@ -9,7 +9,7 @@ import Data.Bits ((.&.))
 
 
 
-data Memory = Memory {m :: MUVector.IOVector Word8, sysvia :: Sysvia}
+data Memory = Memory {m :: MUVector.IOVector Word8, cycleCount :: IORef Integer, sysvia :: Sysvia}
 
 readMemory :: Memory -> Word16 -> IO Word8
 readMemory mem address =
@@ -17,6 +17,7 @@ readMemory mem address =
         readSysvia (sysvia mem) address
     else
         MUVector.read (m mem) (fromIntegral address)
+    -- MUVector.read (m mem) (fromIntegral address)
 
 writeMemory :: Memory -> Word16 -> Word8 -> IO ()
 writeMemory mem address value = do
@@ -24,12 +25,13 @@ writeMemory mem address value = do
         writeSysvia (sysvia mem) address value
     else
         MUVector.write (m mem) (fromIntegral address) value
-    
+    -- MUVector.write (m mem) (fromIntegral address) value
 
 initMemory :: Word8 -> IO Memory
 initMemory initialValue = do
     mVec   <- MUVector.replicate (64*1024) initialValue
-    Memory mVec <$> initSysvia
+    cycleCountRef <- newIORef 0
+    Memory mVec cycleCountRef <$> initSysvia
 
 data CPURegs = CPURegs {pc :: IORef Word16, accumulator :: IORef Word8, x :: IORef Word8, y :: IORef Word8, stackP :: IORef Word8, statusReg :: IORef Word8}
 

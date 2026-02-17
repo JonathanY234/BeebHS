@@ -31,7 +31,7 @@ keyMapping =
         (SDL.ScancodeF4, (1, 4)),
         (SDL.Scancode8, (1, 5)),
         (SDL.ScancodeF7, (1, 6)),
-        (SDL.ScancodeEquals, (1, 7)),
+        (SDL.ScancodeEquals, (1, 7)), -- -=
         -- (SDL.ScancodeTilda, (1, 8)),
         (SDL.ScancodeLeft, (1, 9)),
         (SDL.ScancodeF10, (2, 0)), -- should be F0
@@ -53,7 +53,7 @@ keyMapping =
         (SDL.ScancodeO, (3, 6)),
         (SDL.ScancodeP, (3, 7)),
         (SDL.ScancodeLeftBracket, (3, 8)),
-        (SDL.ScancodeReturn, (3, 9)),
+        (SDL.ScancodeUp, (3, 9)),
         (SDL.ScancodeCapsLock, (4, 0)),
         (SDL.ScancodeA, (4, 1)),
         (SDL.ScancodeX, (4, 2)),
@@ -62,7 +62,7 @@ keyMapping =
         (SDL.ScancodeJ, (4, 5)),
         (SDL.ScancodeK, (4, 6)),
         (SDL.ScancodeApostrophe,  (4, 7)), -- @
-        --(SDL.ScancodeSemicolon,  (4, 8)), -- :
+        (SDL.ScancodeUp,  (4, 8)), -- :
         (SDL.ScancodeReturn, (4, 9)),
         (SDL.ScancodeLShift, (5, 0)),
         (SDL.ScancodeS, (5, 1)),

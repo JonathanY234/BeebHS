@@ -1,6 +1,6 @@
 module CPU6502 where
 
-import MemoryRegisters (initMemory, readMemory, writeMemory, Memory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters, sysvia) 
+import MemoryRegisters (initMemory, readMemory, writeMemory, Memory (cycleCount), CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters, sysvia)
 import LoadRom (loadRom)
 import Debug ( DebugState(..), handleInput, debuggerLineOutput, manageSimulatedKeyPress)
 import Sysvia ( sysviaPoll, Sysvia (irqPendingFlag), doInterruptCheck )
@@ -105,14 +105,14 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                 instr mem regs
                 sysviaPoll (sysvia mem) 2
                 doInterruptCheck (sysvia mem)
-                doIRQfromSysvia mem regs                
+                doIRQfromSysvia mem regs
 
                 -- next instruction
                 nextPcVal <- readIORef (pc regs)
                 operand1 <- readMemory mem (nextPcVal+1)
                 operand2 <- readMemory mem (nextPcVal+2)
                 nextInstructionOpcode <- readMemory mem nextPcVal
-                
+
                 -- decide if need to stop
                 let bps      = breakpoints newDebugState
                     stepsRem = stepsRemaining newDebugState
@@ -166,160 +166,159 @@ opcodeTable :: IBVector.Vector (Memory -> CPURegs -> IO ())
 opcodeTable = IBVector.generate 256 assign
     where
         assign :: Int -> (Memory -> CPURegs -> IO ())
-        assign 0x00 = brk undefined
-        assign 0x01 = indirectX ora
-        assign 0x05 = zeropage ora
-        assign 0x06 = zeropage asl
-        assign 0x08 = implied php
-        assign 0x09 = immediate ora
-        assign 0x0A = useAcc asl
-        assign 0x0D = absolute ora
-        assign 0x0E = absolute asl
-        assign 0x10 = relative bpl
-        assign 0x11 = indirectY ora
-        assign 0x15 = zeropageX ora
-        assign 0x16 = zeropageX asl
-        assign 0x18 = implied clc
-        assign 0x19 = absoluteY ora
-        assign 0x1D = absoluteX ora
-        assign 0x1E = absoluteX asl
-        assign 0x20 = absolute jsr
-        assign 0x21 = indirectX and_
-        assign 0x24 = zeropage bit
-        assign 0x25 = zeropage and_
-        assign 0x26 = zeropage rol
-        assign 0x28 = implied plp
-        assign 0x29 = immediate and_
-        assign 0x2A = useAcc rol
-        assign 0x2C = absolute bit
-        assign 0x2D = absolute and_
-        assign 0x2E = absolute rol
-        assign 0x30 = relative bmi
-        assign 0x31 = indirectY and_
-        assign 0x35 = zeropageX and_
-        assign 0x36 = zeropageX rol
-        assign 0x38 = implied sec
-        assign 0x39 = absoluteY and_
-        assign 0x3D = absoluteX and_
-        assign 0x3E = absoluteX rol
-        assign 0x40 = implied rti
-        assign 0x41 = indirectX eor
-        assign 0x45 = zeropage eor
-        assign 0x46 = zeropage lsr
-        assign 0x48 = implied pha
-        assign 0x49 = immediate eor
-        assign 0x4A = useAcc lsr
-        assign 0x4C = absolute jmp
-        assign 0x4D = absolute eor
-        assign 0x4E = absolute lsr
-        assign 0x50 = relative bvc
-        assign 0x51 = indirectY eor
-        assign 0x55 = zeropageX eor
-        assign 0x56 = zeropageX lsr
-        assign 0x58 = implied cli
-        assign 0x59 = absoluteY eor
-        assign 0x5D = absoluteX eor
-        assign 0x5E = absoluteX lsr
-        assign 0x60 = implied rts
-        assign 0x61 = indirectX adc
-        assign 0x65 = zeropage adc
-        assign 0x66 = zeropage ror
-        assign 0x68 = implied pla
-        assign 0x69 = immediate adc
-        assign 0x6A = useAcc ror
-        assign 0x6C = indirect jmp
-        assign 0x6D = absolute adc
-        assign 0x6E = absolute ror
-        assign 0x70 = relative bvs
-        assign 0x71 = indirectY adc
-        assign 0x75 = zeropageX adc
-        assign 0x76 = zeropageX ror
-        assign 0x78 = implied sei
-        assign 0x79 = absoluteY adc
-        assign 0x7D = absoluteX adc
-        assign 0x7E = absoluteX ror
-        assign 0xB0 = relative bcs
-        assign 0x81 = indirectX sta
-        assign 0x84 = zeropage sty
-        assign 0x85 = zeropage sta
-        assign 0x86 = zeropage stx
-        assign 0x88 = implied dey
-        assign 0x8A = implied txa
-        assign 0x8C = absolute sty
-        assign 0x8D = absolute sta
-        assign 0x8E = absolute stx
-        assign 0x90 = relative bcc
-        assign 0x91 = indirectY sta
-        assign 0x94 = zeropageX sty
-        assign 0x95 = zeropageX sta
-        assign 0x96 = zeropageY stx
-        assign 0x98 = implied tya
-        assign 0x99 = absoluteY sta
-        assign 0x9A = implied txs
-        assign 0x9D = absoluteX sta
-        assign 0xA0 = immediate ldy
-        assign 0xA1 = indirectX lda
-        assign 0xA2 = immediate ldx
-        assign 0xA4 = zeropage ldy
-        assign 0xA5 = zeropage lda
-        assign 0xA6 = zeropage ldx
-        assign 0xA8 = implied tay
-        assign 0xA9 = immediate lda
-        assign 0xAA = implied tax
-        assign 0xAC = absolute ldy
-        assign 0xAD = absolute lda
-        assign 0xAE = absolute ldx
-        assign 0xB1 = indirectY lda
-        assign 0xB4 = zeropageX ldy
-        assign 0xB5 = zeropageX lda
-        assign 0xB6 = zeropageY ldx
-        assign 0xB8 = implied clv
-        assign 0xB9 = absoluteY lda
-        assign 0xBA = implied tsx
-        assign 0xBC = absoluteX ldy
-        assign 0xBD = absoluteX lda
-        assign 0xBE = absoluteY ldx
-        assign 0xC0 = immediate cpy
-        assign 0xC1 = indirectX cmp
-        assign 0xC4 = zeropage cpy
-        assign 0xC5 = zeropage cmp
-        assign 0xC6 = zeropage dec
-        assign 0xC8 = implied iny
-        assign 0xC9 = immediate cmp
-        assign 0xCA = implied dex
-        assign 0xCC = absolute cpy
-        assign 0xCD = absolute cmp
-        assign 0xCE = absolute dec
-        assign 0xD0 = relative bne
-        assign 0xD1 = indirectY cmp
-        assign 0xD5 = zeropageX cmp
-        assign 0xD6 = zeropageX dec
-        assign 0xD8 = implied cld
-        assign 0xD9 = absoluteY cmp
-        assign 0xDD = absoluteX cmp
-        assign 0xDE = absoluteX dec
-        assign 0xE0 = immediate cpx
-        assign 0xE1 = indirectX sbc
-        assign 0xE4 = zeropage cpx
-        assign 0xE5 = zeropage sbc
-        assign 0xE6 = zeropage inc
-        assign 0xE8 = implied inx
-        assign 0xE9 = immediate sbc
-        assign 0xEA = implied nop
-        assign 0xEC = absolute cpx
-        assign 0xED = absolute sbc
-        assign 0xEE = absolute inc
-        assign 0xF0 = relative beq
-        assign 0xF1 = indirectY sbc
-        assign 0xF5 = zeropageX sbc
-        assign 0xF6 = zeropageX inc
-        assign 0xF8 = implied sed
-        assign 0xF9 = absoluteY sbc
-        assign 0xFD = absoluteX sbc
-        assign 0xFE = absoluteX inc
+        assign 0x00 = brk undefined 7
+        assign 0x01 = indirectX ora 6
+        assign 0x05 = zeropage ora 3
+        assign 0x06 = zeropage asl 5
+        assign 0x08 = implied php 3
+        assign 0x09 = immediate ora 2
+        assign 0x0A = useAcc asl 2
+        assign 0x0D = absolute ora 4
+        assign 0x0E = absolute asl 6
+        assign 0x10 = relative bpl 2
+        assign 0x11 = indirectY ora 5
+        assign 0x15 = zeropageX ora 4
+        assign 0x16 = zeropageX asl 6
+        assign 0x18 = implied clc 2
+        assign 0x19 = absoluteY ora 4
+        assign 0x1D = absoluteX ora 4
+        assign 0x1E = absoluteXRMW asl 7
+        assign 0x20 = absolute jsr 6
+        assign 0x21 = indirectX and_ 6
+        assign 0x24 = zeropage bit 3
+        assign 0x25 = zeropage and_ 3
+        assign 0x26 = zeropage rol 5
+        assign 0x28 = implied plp 4
+        assign 0x29 = immediate and_ 2
+        assign 0x2A = useAcc rol 2
+        assign 0x2C = absolute bit 4
+        assign 0x2D = absolute and_ 4
+        assign 0x2E = absolute rol 6
+        assign 0x30 = relative bmi 2
+        assign 0x31 = indirectY and_ 5
+        assign 0x35 = zeropageX and_ 4
+        assign 0x36 = zeropageX rol 6
+        assign 0x38 = implied sec 2
+        assign 0x39 = absoluteY and_ 4
+        assign 0x3D = absoluteX and_ 4
+        assign 0x3E = absoluteXRMW rol 7
+        assign 0x40 = implied rti 6
+        assign 0x41 = indirectX eor 6
+        assign 0x45 = zeropage eor 3
+        assign 0x46 = zeropage lsr 5
+        assign 0x48 = implied pha 3
+        assign 0x49 = immediate eor 2
+        assign 0x4A = useAcc lsr 2
+        assign 0x4C = absolute jmp 3
+        assign 0x4D = absolute eor 4
+        assign 0x4E = absolute lsr 6
+        assign 0x50 = relative bvc 2
+        assign 0x51 = indirectY eor 5
+        assign 0x55 = zeropageX eor 4
+        assign 0x56 = zeropageX lsr 6
+        assign 0x58 = implied cli 2
+        assign 0x59 = absoluteY eor 4
+        assign 0x5D = absoluteX eor 4
+        assign 0x5E = absoluteXRMW lsr 7
+        assign 0x60 = implied rts 6
+        assign 0x61 = indirectX adc 6
+        assign 0x65 = zeropage adc 3
+        assign 0x66 = zeropage ror 5
+        assign 0x68 = implied pla 4
+        assign 0x69 = immediate adc 2
+        assign 0x6A = useAcc ror 2
+        assign 0x6C = indirect jmp 5
+        assign 0x6D = absolute adc 4
+        assign 0x6E = absolute ror 6
+        assign 0x70 = relative bvs 2
+        assign 0x71 = indirectY adc 5
+        assign 0x75 = zeropageX adc 4
+        assign 0x76 = zeropageX ror 6
+        assign 0x78 = implied sei 2
+        assign 0x79 = absoluteY adc 4
+        assign 0x7D = absoluteX adc 4
+        assign 0x7E = absoluteXRMW ror 7
+        assign 0xB0 = relative bcs 2
+        assign 0x81 = indirectX sta 6
+        assign 0x84 = zeropage sty 3
+        assign 0x85 = zeropage sta 3
+        assign 0x86 = zeropage stx 3
+        assign 0x88 = implied dey 2
+        assign 0x8A = implied txa 2
+        assign 0x8C = absolute sty 4
+        assign 0x8D = absolute sta 4
+        assign 0x8E = absolute stx 4
+        assign 0x90 = relative bcc 2
+        assign 0x91 = indirectYRMW sta 6
+        assign 0x94 = zeropageX sty 4
+        assign 0x95 = zeropageX sta 4
+        assign 0x96 = zeropageY stx 4
+        assign 0x98 = implied tya 2
+        assign 0x99 = absoluteYRMW sta 5
+        assign 0x9A = implied txs 2
+        assign 0x9D = absoluteXRMW sta 5
+        assign 0xA0 = immediate ldy 2
+        assign 0xA1 = indirectX lda 6
+        assign 0xA2 = immediate ldx 2
+        assign 0xA4 = zeropage ldy 3
+        assign 0xA5 = zeropage lda 3
+        assign 0xA6 = zeropage ldx 3
+        assign 0xA8 = implied tay 2
+        assign 0xA9 = immediate lda 2
+        assign 0xAA = implied tax 2
+        assign 0xAC = absolute ldy 4
+        assign 0xAD = absolute lda 4
+        assign 0xAE = absolute ldx 4
+        assign 0xB1 = indirectY lda 5
+        assign 0xB4 = zeropageX ldy 4
+        assign 0xB5 = zeropageX lda 4
+        assign 0xB6 = zeropageY ldx 4
+        assign 0xB8 = implied clv 2
+        assign 0xB9 = absoluteY lda 4
+        assign 0xBA = implied tsx 2
+        assign 0xBC = absoluteX ldy 4
+        assign 0xBD = absoluteX lda 4
+        assign 0xBE = absoluteY ldx 4
+        assign 0xC0 = immediate cpy 2
+        assign 0xC1 = indirectX cmp 6
+        assign 0xC4 = zeropage cpy 3
+        assign 0xC5 = zeropage cmp 3
+        assign 0xC6 = zeropage dec 5
+        assign 0xC8 = implied iny 2
+        assign 0xC9 = immediate cmp 2
+        assign 0xCA = implied dex 2
+        assign 0xCC = absolute cpy 4
+        assign 0xCD = absolute cmp 4
+        assign 0xCE = absolute dec 6
+        assign 0xD0 = relative bne 2
+        assign 0xD1 = indirectY cmp 5
+        assign 0xD5 = zeropageX cmp 4
+        assign 0xD6 = zeropageX dec 6
+        assign 0xD8 = implied cld 2
+        assign 0xD9 = absoluteY cmp 4
+        assign 0xDD = absoluteX cmp 4
+        assign 0xDE = absoluteXRMW dec 7
+        assign 0xE0 = immediate cpx 2
+        assign 0xE1 = indirectX sbc 6
+        assign 0xE4 = zeropage cpx 3
+        assign 0xE5 = zeropage sbc 3
+        assign 0xE6 = zeropage inc 5
+        assign 0xE8 = implied inx 2
+        assign 0xE9 = immediate sbc 2
+        assign 0xEA = implied nop 2
+        assign 0xEC = absolute cpx 4
+        assign 0xED = absolute sbc 4
+        assign 0xEE = absolute inc 6
+        assign 0xF0 = relative beq 2
+        assign 0xF1 = indirectY sbc 5
+        assign 0xF5 = zeropageX sbc 4
+        assign 0xF6 = zeropageX inc 6
+        assign 0xF8 = implied sed 2
+        assign 0xF9 = absoluteY sbc 4
+        assign 0xFD = absoluteX sbc 4
+        assign 0xFE = absoluteXRMW inc 7
         assign _    = instrUnimplemented
 
-        -- Read Two Bytes helper function ???
 
 instrUnimplemented :: Memory -> CPURegs -> IO ()
 instrUnimplemented _ regs = do
@@ -328,8 +327,10 @@ instrUnimplemented _ regs = do
 
 -- __________Addressing Modes__________
 -- immediate        value is the value right there in the instruction
-immediate :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-immediate instr mem regs = do
+immediate :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+immediate instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
 
@@ -337,8 +338,10 @@ immediate instr mem regs = do
     instr (fromIntegral operand) mem regs True
 
 -- zeropage         value is in 0th page can be addressed with 8bits
-zeropage :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-zeropage instr mem regs = do
+zeropage :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+zeropage instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
 
@@ -346,8 +349,10 @@ zeropage instr mem regs = do
     instr (fromIntegral operand) mem regs False
 
 -- zeropage,X       value is at (zeropage + value of X reg) (will overflow)
-zeropageX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-zeropageX instr mem regs = do
+zeropageX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+zeropageX instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
 
@@ -358,8 +363,10 @@ zeropageX instr mem regs = do
     instr (fromIntegral address) mem regs False
 
 -- zeropage,Y       like zeropage X but with Y (rarely used by instructions)
-zeropageY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-zeropageY instr mem regs = do
+zeropageY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+zeropageY instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
 
@@ -374,8 +381,10 @@ combineTwoBytes :: Word8 -> Word8 -> Word16
 combineTwoBytes low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 
 -- absolute         value is at address pointed to by the next 2 bytes (the whole memory)
-absolute :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-absolute instr mem regs = do
+absolute :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+absolute instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
@@ -385,34 +394,44 @@ absolute instr mem regs = do
     instr address mem regs False
 
 -- absolute,X       value is at Absolute address plus X
-absoluteX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-absoluteX instr mem regs = do
+absoluteX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+absoluteX instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
-    
+
     x' <- readIORef (x regs)
     let address = combineTwoBytes operand1 operand2 + fromIntegral x'
+
+    when (operand1 + x' < operand1) $ modifyIORef' (cycleCount mem) (+ 1) --when page boundry crossed
 
     writeIORef (pc regs) (pcVal + 3)
     instr address mem regs False
 
 -- absolute,Y       ''
-absoluteY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-absoluteY instr mem regs = do
+absoluteY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+absoluteY instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
-    
+
     y' <- readIORef (y regs)
-    let address = ((fromIntegral operand2 `shiftL` 8) .|. fromIntegral operand1) + fromIntegral y'
+    let address = combineTwoBytes operand1 operand2 + fromIntegral y'
+
+    when (operand1 + y' < operand1) $ modifyIORef' (cycleCount mem) (+ 1) --when page boundry crossed
 
     writeIORef (pc regs) (pcVal + 3)
     instr address mem regs False
 
 -- (indirect,X)     read value at operand (8 bit, only zeropage) + X (overflows), then read 2 bytes and value is memory at those 2 bytes
-indirectX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-indirectX instr mem regs = do
+indirectX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+indirectX instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
 
@@ -428,8 +447,10 @@ indirectX instr mem regs = do
     instr address mem regs False
 
 -- (indirect),Y     read two bytes at zero-page operand and add Y, Use that as address
-indirectY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-indirectY instr mem regs = do
+indirectY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+indirectY instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
     byte1 <- readMemory mem (fromIntegral operand)
@@ -438,13 +459,51 @@ indirectY instr mem regs = do
     y' <- readIORef (y regs)
     let address = combineTwoBytes byte1 byte2 + fromIntegral y'
 
+    when (byte1 + y' < byte1) $ modifyIORef' (cycleCount mem) (+1) --when page boundry crossed
+
     writeIORef (pc regs) (pcVal + 2)
     instr address mem regs False
 
+-- For INC, DEC, ASL, ROL, LSR, ROR, STA
+-- no page crossing cycle penalty, these are mostly still copies the base addressing mode
+-- this code repetition is pretty horrible
+absoluteXRMW :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+absoluteXRMW instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+    pcVal <- readIORef (pc regs)
+    operand1 <- readMemory mem (pcVal + 1)
+    operand2 <- readMemory mem (pcVal + 2)
+    x' <- readIORef (x regs)
+    let address = combineTwoBytes operand1 operand2 + fromIntegral x'
+    writeIORef (pc regs) (pcVal + 3)
+    instr address mem regs False
+indirectYRMW :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+indirectYRMW instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+    pcVal <- readIORef (pc regs)
+    operand <- readMemory mem (pcVal + 1)
+    byte1 <- readMemory mem (fromIntegral operand)
+    byte2 <- readMemory mem (fromIntegral (operand + 1))
+    y' <- readIORef (y regs)
+    let address = combineTwoBytes byte1 byte2 + fromIntegral y'
+    writeIORef (pc regs) (pcVal + 2)
+    instr address mem regs False
+absoluteYRMW :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+absoluteYRMW instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+    pcVal <- readIORef (pc regs)
+    operand1 <- readMemory mem (pcVal + 1)
+    operand2 <- readMemory mem (pcVal + 2)
+    y' <- readIORef (y regs)
+    let address = combineTwoBytes operand1 operand2 + fromIntegral y'
+    writeIORef (pc regs) (pcVal + 3)
+    instr address mem regs False
 
 -- (indirect)       only used by JMP
-indirect :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-indirect instr mem regs = do
+indirect :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+indirect instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
 
     operand1 <- readMemory mem (pcVal + 1)
@@ -464,22 +523,28 @@ indirect instr mem regs = do
     instr address mem regs False
 
 -- useAcc       use the value in the accumulator instead
-useAcc :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-useAcc instr mem regs = do
+useAcc :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+useAcc instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     writeIORef (pc regs) (pcVal + 1)
     instr 0 mem regs True
 
 -- implied      No operands because memory is not used (actually it seems it is)
-implied :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-implied instr mem regs = do
+implied :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+implied instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     writeIORef (pc regs) (pcVal + 1)
     instr 0 mem regs False
 
 -- relative     Used by branch instructions
-relative :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-relative instr mem regs = do
+relative :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+relative instr baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
+
     pcVal <- readIORef (pc regs)
     operand <- readMemory mem (pcVal + 1)
     let offset = fromIntegral (fromIntegral operand :: Int8) :: Int -- keeps the sign bit (hopefully)
@@ -488,7 +553,7 @@ relative instr mem regs = do
 
     writeIORef (pc regs) (pcVal + 2) -- in case we dont branch
 
-    instr branchTarget undefined regs False
+    instr branchTarget mem regs False
 
 -- __________Instructions__________
 
@@ -557,7 +622,7 @@ sbc address mem regs isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
-    
+
     let invertedVal = complement inputVal
     adc (fromIntegral invertedVal) mem regs True
     -- Invert then use ADC works because 6502 reuses add circuitry for sub just like I am reusing the code for it
@@ -684,7 +749,7 @@ dex _ _ regs _ = do
     x' <- readIORef (x regs)
     let newVal = x' - 1
     writeIORef (x regs) newVal
-    
+
     srWriteZero (statusReg regs) (newVal == 0)
     srWriteNegative (statusReg regs) (testBit newVal 7)
 
@@ -714,7 +779,7 @@ inx _ _ regs _ = do
     x' <- readIORef (x regs)
     let newVal = x' + 1
     writeIORef (x regs) newVal
-    
+
     srWriteZero (statusReg regs) (newVal == 0)
     srWriteNegative (statusReg regs) (testBit newVal 7)
 
@@ -724,7 +789,7 @@ iny _ _ regs _ = do
     y' <- readIORef (y regs)
     let newVal = y' + 1
     writeIORef (y regs) newVal
-    
+
     srWriteZero (statusReg regs) (newVal == 0)
     srWriteNegative (statusReg regs) (testBit newVal 7)
 
@@ -752,7 +817,7 @@ eor address mem regs isImmediate = do
     acc <- readIORef (accumulator regs)
     let result = inputVal `xor` acc
     writeIORef (accumulator regs) result
-    
+
     srWriteZero (statusReg regs) (result == 0)
     srWriteNegative (statusReg regs) (testBit result 7)
 
@@ -765,7 +830,7 @@ ora address mem regs isImmediate = do
     acc <- readIORef (accumulator regs)
     let result = inputVal .|. acc
     writeIORef (accumulator regs) result
-    
+
     srWriteZero (statusReg regs) (result == 0)
     srWriteNegative (statusReg regs) (testBit result 7)
 
@@ -889,7 +954,7 @@ cmp address mem regs isImmediate = do
         else readMemory mem address
 
     acc <- readIORef (accumulator regs)
-    
+
     srWriteCarry (statusReg regs) (acc >= inputVal)
     srWriteZero (statusReg regs) (acc == inputVal)
     srWriteNegative (statusReg regs) (testBit (acc-inputVal) 7)
@@ -902,7 +967,7 @@ cpx address mem regs isImmediate = do
         else readMemory mem address
 
     x' <- readIORef (x regs)
-    
+
     srWriteCarry (statusReg regs) (x' >= inputVal)
     srWriteZero (statusReg regs) (x' == inputVal)
     srWriteNegative (statusReg regs) (testBit (x'-inputVal) 7)
@@ -915,7 +980,7 @@ cpy address mem regs isImmediate = do
         else readMemory mem address
 
     y' <- readIORef (y regs)
-    
+
     srWriteCarry (statusReg regs) (y' >= inputVal)
     srWriteZero (statusReg regs) (y' == inputVal)
     srWriteNegative (statusReg regs) (testBit (y'-inputVal) 7)
@@ -934,53 +999,62 @@ bit address mem regs _ = do
 
 -- %%% Conditional Branch %%%
 
+branchIf :: Bool -> Word16 -> Memory -> CPURegs -> IO ()
+branchIf condition branchTarget mem regs = do
+    when condition $ do
+        oldPc <- readIORef (pc regs)
+        if (oldPc .&. 0xFF00) == (branchTarget .&. 0xFF00)
+            then modifyIORef' (cycleCount mem) (+1)
+            else modifyIORef' (cycleCount mem) (+2)
+        writeIORef (pc regs) branchTarget
+
 -- Branch if Carry Clear
 bcc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bcc branchTarget _ regs _ = do
+bcc branchTarget mem regs _ = do
     carry' <- srReadCarry (statusReg regs)
-    unless carry' (writeIORef (pc regs) branchTarget)
+    branchIf (not carry') branchTarget mem regs
 
 -- Branch if Carry Set
 bcs :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bcs branchTarget _ regs _ = do
+bcs branchTarget mem regs _ = do
     carry' <- srReadCarry (statusReg regs)
-    when carry' (writeIORef (pc regs) branchTarget)
+    branchIf carry' branchTarget mem regs
 
 -- Branch if Equal (Zero Set)
 beq :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-beq branchTarget _ regs _ = do
+beq branchTarget mem regs _ = do
     zero' <- srReadZero (statusReg regs)
-    when zero' (writeIORef (pc regs) branchTarget)
+    branchIf zero' branchTarget mem regs
 
 -- Branch if Not Equal (Zero clear)
 bne :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bne branchTarget _ regs _ = do
+bne branchTarget mem regs _ = do
     zero' <- srReadZero (statusReg regs)
-    unless zero' (writeIORef (pc regs) branchTarget)
+    branchIf (not zero') branchTarget mem regs
 
 -- Branch if Minus (Negative Set)
 bmi :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bmi branchTarget _ regs _ = do
+bmi branchTarget mem regs _ = do
     negative' <- srReadNegative (statusReg regs)
-    when negative' (writeIORef (pc regs) branchTarget)
+    branchIf negative' branchTarget mem regs
 
 -- Branch if Positive (Negative clear)
 bpl :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bpl branchTarget _ regs _ = do
+bpl branchTarget mem regs _ = do
     negative' <- srReadNegative (statusReg regs)
-    unless negative' (writeIORef (pc regs) branchTarget)
+    branchIf (not negative') branchTarget mem regs
 
 --- Branch if Overflow Clear
 bvc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bvc branchTarget _ regs _ = do
+bvc branchTarget mem regs _ = do
     overflow' <- srReadOverflow (statusReg regs)
-    unless overflow' (writeIORef (pc regs) branchTarget)
+    branchIf (not overflow') branchTarget mem regs
 
 -- Branch if Overflow Set
 bvs :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bvs branchTarget _ regs _ = do
+bvs branchTarget mem regs _ = do
     overflow' <- srReadOverflow (statusReg regs)
-    when overflow' (writeIORef (pc regs) branchTarget)
+    branchIf overflow' branchTarget mem regs
 
 -- %%% No Operation %%%
 
@@ -1007,7 +1081,7 @@ pullStack mem regs = do
     stackPointer <- readIORef (stackP regs)
 
     let stackTop = stackBase + fromIntegral (stackPointer + 1) -- here the increment is done 'before' reading the stack
-    
+
     writeIORef (stackP regs) (stackPointer + 1)
 
     readMemory mem stackTop
@@ -1078,7 +1152,7 @@ jsr address mem regs _ = do
         lowByte  = fromIntegral returnAddress              :: Word8
         highByte = fromIntegral (returnAddress `shiftR` 8) :: Word8
 
-    
+
     pushStack mem regs highByte
 
     pushStack mem regs lowByte -- is this the correct order I'm not sure
@@ -1111,7 +1185,7 @@ irqShared mem regs = do
 
         highByte = fromIntegral (returnAddress `shiftR` 8)  :: Word8
         lowByte  = fromIntegral returnAddress               :: Word8
-    
+
     sr <- readIORef (statusReg regs)
     let correctedSrVal = sr .|. 0x20 -- ensure unused is set
 
@@ -1135,8 +1209,9 @@ irq mem regs = do
     irqShared mem regs
 
 -- break: Software IRQ
-brk :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Memory -> CPURegs -> IO ()
-brk _ mem regs = do
+brk :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
+brk _ baseCycles mem regs = do
+    modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
     pcVal <- readIORef (pc regs)
     writeIORef (pc regs) (pcVal + 2)

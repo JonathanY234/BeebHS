@@ -73,7 +73,7 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
                                     then V4 255 255 255 255 -- white
                                     else V4 0 0 0 255 -- black
                         drawPixel (fromIntegral px) (fromIntegral py) colour
-                drawPixel (fromIntegral trueX) (fromIntegral trueY) (V4 255 0 0 255)
+                --drawPixel (fromIntegral trueX) (fromIntegral trueY) (V4 255 0 0 255)
 
             drawPixel :: Int -> Int -> V4 Word8 -> IO ()
             drawPixel x y (V4 red green blue alpha) = do
