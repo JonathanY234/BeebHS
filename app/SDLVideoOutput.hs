@@ -1,6 +1,6 @@
 module SDLVideoOutput where
 
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Data.Text qualified
 import Data.Vector qualified as IBVector
 import Data.Word (Word8, Word16)
@@ -41,12 +41,21 @@ initVideo = do
 
     return ctxt
 
-eventLoop :: IO Bool
+eventLoop :: IO (Bool, Bool)
 eventLoop = do
     events <- SDL.pollEvents
     let quit = SDL.QuitEvent `elem` map SDL.eventPayload events
 
-    return quit
+    let eventIsQPress event =
+            case SDL.eventPayload event of
+            SDL.KeyboardEvent keyboardEvent ->
+                SDL.keyboardEventKeyMotion keyboardEvent == SDL.Pressed
+                && SDL.keysymKeycode (SDL.keyboardEventKeysym keyboardEvent) == SDL.KeycodeQ
+            _ -> False
+        qPressed = any eventIsQPress events
+    when qPressed $ putStrLn "Q pressed"
+
+    return (quit, qPressed)
 
 renderMode7Frame :: SDLContext -> IBVector.Vector [[Bool]] -> Memory -> Word16 -> IO ()
 renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVector mem startOffset = do

@@ -15,9 +15,6 @@ loadRom path codeOffset mem = withBinaryFile path ReadMode $ \fHandle -> do
     let bytesAndIndexes = zip ([codeOffset..] :: [Word16]) bytes
     forM_ bytesAndIndexes $ uncurry (writeMemoryArrayOnly mem)
 
--- clearScreenArea :: Memory -> IO ()
--- clearScreenArea mem = do
-
 loadMode7Font :: FilePath -> Int -> IO (IBVector.Vector [[Bool]])
 loadMode7Font path headersize = withBinaryFile path ReadMode $ \fHandle -> do
     (bytes :: [Word8]) <- B.unpack <$> B.hGetContents fHandle
@@ -43,3 +40,18 @@ rearrangeLettersRowColumnFormat input = concatMap separateDoubleRow doubleRows
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
 chunksOf n xs = let (head_, tail_) = splitAt n xs in head_ : chunksOf n tail_
+
+loadSpaceInvaders :: Memory -> IO ()
+loadSpaceInvaders mem = do
+    let path = "games/Disc022-SpaceInvadersArcadeAction.ssd"
+        ssdOffset = 0x800
+        loadAddr  = 0x1900
+        lengthBytes = 0x2400
+
+    bytes <- withBinaryFile path ReadMode B.hGetContents
+
+    let slice = B.take lengthBytes $ B.drop ssdOffset bytes
+
+    sequence_ [writeMemoryArrayOnly mem (fromIntegral (loadAddr + i)) b | (i, b) <- zip [0..] (B.unpack slice)]
+
+    putStrLn "loaded space invaders"

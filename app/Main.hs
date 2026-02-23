@@ -1,12 +1,12 @@
 module Main where
 
 import CPU6502 (cpuInit, runInstructionsDebug, runInstructions, debuggerStart)
-import LoadRom (loadMode7Font)
+import LoadRom (loadMode7Font, loadSpaceInvaders)
 import SDLVideoOutput (initVideo, endVideo, eventLoop, renderMode7Frame)
 import HarteCpuTests (runTests)
 import Debug (DebugState, DebugState(..))
 
-import System.Clock
+import System.Clock ( getTime, toNanoSecs, Clock(Monotonic) )
 import Control.Concurrent (threadDelay)
 import Control.Monad (unless, when)
 import System.Environment (getArgs)
@@ -30,23 +30,26 @@ main = do
     --m7Font <- loadMode7Font "roms/original.fnt" 24
     m7Font <- loadMode7Font "roms/basicsdl.fnt" 28
     --let (targetHz :: Int) = 50
-
-    clockStart <- getTime Monotonic
     
     (mem, regs) <- cpuInit
     sdlCtxt <- initVideo
 
+    clockStart <- getTime Monotonic
+
     let mainLoop :: DebugState -> IO ()
         mainLoop debugState = do
-            quit <- eventLoop
-            updateKeyboardMatrix mem
-
+            (quit, qPressed) <- eventLoop
+            
             unless quit $ do
+
+                when qPressed $ loadSpaceInvaders mem
+
+                updateKeyboardMatrix mem
 
                 newDebugState <- if isDebug
                     then runInstructionsDebug mem regs 10000 debugState
                     else do
-                        runInstructions mem regs 10000 -- make this function actually do cycles not instructions
+                        runInstructions mem regs 10000
                         return debugState -- value of debugState is not relevent here as not debugging
 
                 scrollAmount <- getScrollingAmount mem

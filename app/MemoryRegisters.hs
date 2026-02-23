@@ -47,3 +47,6 @@ initRegisters ipc ia ix iy isp isr = do
 
 writeMemoryArrayOnly :: Memory -> Word16 -> Word8 -> IO ()
 writeMemoryArrayOnly mem address = MUVector.write (m mem) (fromIntegral address)
+
+readMemoryArrayOnly :: Memory -> Word16 -> IO Word8
+readMemoryArrayOnly mem address = MUVector.read (m mem) (fromIntegral address) --value
