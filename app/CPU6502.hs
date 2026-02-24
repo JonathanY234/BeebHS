@@ -9,9 +9,15 @@ import Data.Word (Word16, Word8)
 import Data.Int (Int8)
 import Data.Bits ( Bits((.|.), testBit, complement, (.&.), shiftL, shiftR, xor))
 import Data.IORef (IORef, readIORef, modifyIORef', writeIORef)
-import Control.Monad (unless, when)
+import Control.Monad (when, forM)
 import qualified Data.Vector as IBVector
 import Utilities (showHexF)
+
+-- temp
+import System.Exit (exitSuccess)
+import qualified Data.ByteString as ByteStr
+import GHC.IO.Handle.FD (withBinaryFile)
+import GHC.IO.IOMode (IOMode(WriteMode))
 
 cpuInit :: IO (Memory, CPURegs)
 cpuInit = do
@@ -173,6 +179,7 @@ opcodeTable = IBVector.generate 256 assign
         assign 0x08 = implied php 3
         assign 0x09 = immediate ora 2
         assign 0x0A = useAcc asl 2
+        assign 0x0C = absolute ill_0C 4
         assign 0x0D = absolute ora 4
         assign 0x0E = absolute asl 6
         assign 0x10 = relative bpl 2
@@ -319,11 +326,25 @@ opcodeTable = IBVector.generate 256 assign
         assign 0xFE = absoluteXRMW inc 7
         assign _    = instrUnimplemented
 
+dumpRAM :: Memory -> IO ()
+dumpRAM mem = do
+    bytes <- forM [0..0x7FFF] $ \addr -> do
+        val <- readMemory mem addr
+        return (fromIntegral (val .&. 0xFF) :: Word8)
+
+    let bs = ByteStr.pack bytes
+    withBinaryFile "ram_dump.bin" WriteMode $ \h -> ByteStr.hPut h bs
+    putStrLn "dump done"
 
 instrUnimplemented :: Memory -> CPURegs -> IO ()
-instrUnimplemented _ regs = do
+instrUnimplemented mem regs = do
     pcVal <- readIORef (pc regs)
-    putStrLn $ "unimplementedFunction at " ++ showHexF pcVal
+    putStrLn $ "unimplementedOpcode at " ++ showHexF pcVal
+    opcode <- readMemory mem pcVal
+    putStrLn $ "Value: " ++ showHexF opcode
+
+    -- dumpRAM mem
+    -- exitSuccess
 
 -- __________Addressing Modes__________
 -- immediate        value is the value right there in the instruction
@@ -1233,3 +1254,9 @@ rti _ mem regs _ = do
 
     writeIORef (statusReg regs) correctedSrVal
     writeIORef (pc regs) returnAddress
+
+-- %%% Illegal Instructions %%%
+
+-- another nop
+ill_0C :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
+ill_0C _ _ _ _ = return ()
