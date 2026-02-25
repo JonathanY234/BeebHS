@@ -43,10 +43,23 @@ chunksOf n xs = let (head_, tail_) = splitAt n xs in head_ : chunksOf n tail_
 
 loadSpaceInvaders :: Memory -> IO ()
 loadSpaceInvaders mem = do
-    let path = "games/Disc022-SpaceInvadersArcadeAction.ssd"
-        ssdOffset = 0x800
+    -- let path = "games/Disc022-SpaceInvadersArcadeAction.ssd"
+    --     ssdOffset = 0x800
+    --     loadAddr  = 0x1900
+    --     lengthBytes = 0x2400
+
+    -- bytes <- withBinaryFile path ReadMode B.hGetContents
+
+    -- let slice = B.take lengthBytes $ B.drop ssdOffset bytes
+
+    -- sequence_ [writeMemoryArrayOnly mem (fromIntegral (loadAddr + i)) b | (i, b) <- zip [0..] (B.unpack slice)]
+
+    -- putStrLn "loaded Space invaders"
+
+    let path = "games/DiscA13-MapQuizMode7.ssd"
+        ssdOffset = 0x300
         loadAddr  = 0x1900
-        lengthBytes = 0x2400
+        lengthBytes = 0x1000
 
     bytes <- withBinaryFile path ReadMode B.hGetContents
 
@@ -54,4 +67,4 @@ loadSpaceInvaders mem = do
 
     sequence_ [writeMemoryArrayOnly mem (fromIntegral (loadAddr + i)) b | (i, b) <- zip [0..] (B.unpack slice)]
 
-    putStrLn "loaded space invaders"
+    putStrLn "loaded MapQuiz"

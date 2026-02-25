@@ -22,6 +22,7 @@ showHexX n =
 
 -- Same thing but without the Ox
 showHexF :: (Integral a) => a -> String
+showHexF 0x20 = "  " --temp
 showHexF n =
     let (sign, absVal) = if n < 0 then ('-', abs n) else ('\0', n)
         val = map toUpper (showHex absVal "")
