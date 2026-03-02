@@ -9,7 +9,7 @@ import Foreign.Storable (pokeByteOff)
 import SDL qualified
 import SDL.Vect (V4 (..))
 
-import MemoryRegisters(Memory, readMemory, writeMemory)
+import MemoryRegisters(Memory, readMemory)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Utilities (showHexF)
 
@@ -68,6 +68,8 @@ renderMode7Frame :: SDLContext -> IBVector.Vector [[Bool]] -> Memory -> Word16 -
 renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVector mem startOffset = do
     m7StateRef <- newIORef startState
 
+    --dumpMode7Memory mem
+
     _ <-
         SDL.lockTexture texture_ Nothing >>= \(pixelsPtr, pitch) -> do
         let videoMemStart = 0x7C00
@@ -92,6 +94,8 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
                             133 -> m7State { fgColour = V4 255 0 255 255, graphicsMode = Text }   -- magenta
                             134 -> m7State { fgColour = V4 0 255 255 255, graphicsMode = Text }   -- cyan
                             135 -> m7State { fgColour = V4 255 255 255 255, graphicsMode = Text } -- white
+
+                            --136 flashing
 
                             140 -> m7State { doubleHeight = False }
                             141 -> m7State { doubleHeight = True }
@@ -180,6 +184,7 @@ endVideo ctxt = do
 dumpMode7Memory :: Memory -> IO ()
 dumpMode7Memory mem = do
     let startAddr = 0x7C00
+        rows :: Int
         rows = 25
         cols = 40
     forM_ [0 .. rows - 1] $ \y -> do

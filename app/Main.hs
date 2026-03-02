@@ -1,7 +1,7 @@
 module Main where
 
 import CPU6502 (cpuInit, runInstructionsDebug, runInstructions, debuggerStart)
-import LoadRom (loadMode7Font, loadSpaceInvaders)
+import LoadRom (loadMode7Font, loadSsdAllFiles)
 import SDLVideoOutput (initVideo, endVideo, eventLoop, renderMode7Frame)
 import HarteCpuTests (runTests)
 import Debug (DebugState, DebugState(..))
@@ -42,7 +42,7 @@ main = do
             
             unless quit $ do
 
-                when qPressed $ loadSpaceInvaders mem
+                when qPressed $ loadSsdAllFiles mem
 
                 updateKeyboardMatrix mem
 
