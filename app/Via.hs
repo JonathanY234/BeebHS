@@ -39,7 +39,6 @@ initVia = do
     cb2Ref           <- newIORef False
     srModeRef        <- newIORef 0
     --sysviaRef      <- initSysviaOnly
-    -- kMatr  <- newIORef (IBVector.replicate (kbMatrixRows * kbMatrixCols) False)
 
     return (Via oraRef orbRef iraRef irbRef ddraRef ddrbRef
              acrRef pcrRef ifrRef ierRef

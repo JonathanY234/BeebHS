@@ -7,9 +7,7 @@ import Data.IORef (IORef, newIORef)
 import qualified Data.Vector.Unboxed.Mutable as MUVector
 import Data.Bits ((.&.))
 
-
-
-data Memory = Memory {m :: MUVector.IOVector Word8, cycleCount :: IORef Integer, sysvia :: Sysvia}
+data Memory = Memory {m :: MUVector.IOVector Word8, cycleCount :: IORef Integer, sysvia :: Sysvia, fileTable :: FileTable}
 
 readMemory :: Memory -> Word16 -> IO Word8
 readMemory mem address =
@@ -31,7 +29,8 @@ initMemory :: Word8 -> IO Memory
 initMemory initialValue = do
     mVec   <- MUVector.replicate (64*1024) initialValue
     cycleCountRef <- newIORef 0
-    Memory mVec cycleCountRef <$> initSysvia
+    sysviaa <- initSysvia
+    Memory mVec cycleCountRef sysviaa <$> initFileTable
 
 data CPURegs = CPURegs {pc :: IORef Word16, accumulator :: IORef Word8, x :: IORef Word8, y :: IORef Word8, stackP :: IORef Word8, statusReg :: IORef Word8}
 
@@ -50,3 +49,22 @@ writeMemoryArrayOnly mem address = MUVector.write (m mem) (fromIntegral address)
 
 readMemoryArrayOnly :: Memory -> Word16 -> IO Word8
 readMemoryArrayOnly mem address = MUVector.read (m mem) (fromIntegral address) --value
+
+--File Management
+data OpenFile = OpenFile
+  { handle              :: Word8
+  , fileName            :: String
+  , mode                :: FileMode
+  , readWritePosition   :: Int
+  , filePointer         :: Int
+  }
+data FileMode = Input | Output | InputOutput
+
+type FileTable = (IORef (Maybe OpenFile), IORef (Maybe OpenFile), IORef (Maybe OpenFile))
+
+initFileTable :: IO FileTable
+initFileTable = do
+    slot1 <- newIORef Nothing
+    slot2 <- newIORef Nothing
+    slot3 <- newIORef Nothing
+    return (slot1, slot2, slot3)

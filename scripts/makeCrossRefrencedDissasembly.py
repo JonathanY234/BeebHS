@@ -4,13 +4,17 @@ def instrSize(addressingMode: str) -> int:
     match addressingMode:
         case "immediate": return 2
         case "zeropage": return 2
+        case "zeropageXRMW": return 2
         case "zeropageX": return 2
         case "zeropageY": return 2
         case "absolute": return 3
         case "absoluteX": return 3
+        case "absoluteXRMW": return 3
         case "absoluteY": return 3
+        case "absoluteYRMW": return 3
         case "indirectX": return 2
         case "indirectY": return 2
+        case "indirectYRMW": return 2
         case "indirect": return 3
         case "implied": return 1
         case "relative": return 2
@@ -64,7 +68,7 @@ print(f"sum of chapters {sum(chapterSizes)}")
 
 filepath = "app/CPU6502.hs"
 opcodeTableStart = 180 -1
-opcodeTableEnd = 330
+opcodeTableEnd = 331
 
 
 opcode_to_size = {}
@@ -135,12 +139,23 @@ def annotateChapter(chapterNo: int):
 
     skipChapter = False
 
+    # rom_idx is set based on information from the dissasembly. But its not always accurate so correction here
     if chapterNo == 4: #account for the table of chars
         rom_idx += 752
-    elif chapterNo == 18 or chapterNo == 19: # i should fix these
-        skipChapter = True
+    elif chapterNo == 10:
+        rom_idx += 141
+    elif chapterNo == 18:
+        rom_idx -= 504
+    elif chapterNo == 19:
+        rom_idx -= 198
+    elif chapterNo == 20:
+        rom_idx += 28
+    elif chapterNo == 21:
+        rom_idx += 323
     elif chapterNo == 22: # this one is just credits
         skipChapter = True
+    elif chapterNo == 23:
+        rom_idx += 436
 
     #seek to the start of the chapter
     
@@ -173,8 +188,9 @@ def annotateChapter(chapterNo: int):
         
         possible_opcodes = getOpcodes(mnemonic)# Need to handle multiple possible opcodes for one mnemonic for each addressing mode
 
+        # if chapterNo == 14:
+        #     print(f"rom_idx is {hex(rom_idx)}")
 
-        print(f"rom_idx is {hex(rom_idx)}")
         if rom_bytes[rom_idx] in possible_opcodes:
             pass
         else:

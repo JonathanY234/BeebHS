@@ -1,7 +1,7 @@
 module Main where
 
 import CPU6502 (cpuInit, runInstructionsDebug, runInstructions, debuggerStart)
-import LoadRom (loadMode7Font, loadSsdAllFiles)
+import LoadRom (loadMode7Font)
 import SDLVideoOutput (initVideo, endVideo, eventLoop, renderMode7Frame)
 import HarteCpuTests (runTests)
 import Debug (DebugState, DebugState(..))
@@ -38,11 +38,11 @@ main = do
 
     let mainLoop :: DebugState -> IO ()
         mainLoop debugState = do
-            (quit, qPressed) <- eventLoop
+            (quit, _) <- eventLoop
             
             unless quit $ do
 
-                when qPressed $ loadSsdAllFiles mem
+                --when qPressed $ loadSsdAllFiles mem
 
                 updateKeyboardMatrix mem
 

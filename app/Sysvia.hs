@@ -16,9 +16,9 @@ kbdMatrixRows = 8
 kbdMatrixCols = 10
 
 data Sysvia = Sysvia {via :: Via, srTrigger :: IORef Int, sdbVal :: IORef Word8,
-                      kbdRow :: IORef Int, kbdCol :: IORef Int, keyboardMatrix :: IORef (IBVector.Vector Bool), keysDown :: IORef Int, keyboardLinks :: IORef Word8,
+                      kbdRow :: IORef Int, kbdCol :: IORef Int, keyboardMatrix :: IORef (IBVector.Vector Bool), keyboardLinks :: IORef Word8,
                       ic32State :: IORef Word8,
-                      intStatus :: IORef Word8, previousIntStatus :: IORef Word8, customSRTrigger :: IORef Int, irqPendingFlag :: IORef Bool} --doesnt belong here
+                      intStatus :: IORef Word8, previousIntStatus :: IORef Word8, irqPendingFlag :: IORef Bool} --doesnt belong here
 
 initSysvia :: IO Sysvia
 initSysvia = do
@@ -28,14 +28,12 @@ initSysvia = do
     kbdRowRef           <- newIORef 0
     kbdColRef           <- newIORef 0
     kMatrRef            <- newIORef (IBVector.replicate (kbdMatrixRows * kbdMatrixCols) False)
-    keysDownRef         <- newIORef 0 --remove this
     keyboardLinksRef    <- newIORef 0
     ic32StateRef        <- newIORef 0
     intStatusRef        <- newIORef 0 --not specific to the sysvia (shared across multiple)
     previousIntStatusRef <- newIORef 0
-    customSRTriggerRef <- newIORef (-1)
     irqPendingFlagRef <- newIORef False --also not sysvia specific
-    return (Sysvia viaRef srTriggerRef sdbValRef kbdRowRef kbdColRef kMatrRef keysDownRef keyboardLinksRef ic32StateRef intStatusRef previousIntStatusRef customSRTriggerRef irqPendingFlagRef)
+    return (Sysvia viaRef srTriggerRef sdbValRef kbdRowRef kbdColRef kMatrRef keyboardLinksRef ic32StateRef intStatusRef previousIntStatusRef irqPendingFlagRef)
 
 -- via inside sysvia helper functions
 readViaF :: Sysvia -> (Via -> IORef a) -> IO a
@@ -335,12 +333,10 @@ updateSRState svia srRW = do
     let mode = fromIntegral $ (acrVal `shiftR` 2) .&. 0x07
     writeViaF svia srMode mode
 
-    -- srTriggerVal <- readIORef (srTrigger svia)
-    -- when ((mode == 2 || mode == 6) && srTriggerVal == maxBound) $
-    --     setTrigger 32 (srTrigger svia)
-    customSRTriggerVal <- readIORef (customSRTrigger svia)
-    when ((mode == 2 || mode == 6) && customSRTriggerVal == (-1)) $
-        writeIORef (customSRTrigger svia) 32
+    srTriggerVal <- readIORef (srTrigger svia)
+    when ((mode == 2 || mode == 6) && srTriggerVal == maxBound) $
+        writeIORef (srTrigger svia) 32 -- check this part, currently unused
+
 
     when srRW $ do
         ifrVal <- readViaF svia ifr

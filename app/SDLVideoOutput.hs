@@ -15,13 +15,9 @@ import Utilities (showHexF)
 
 data SDLContext = SDLContext {window :: SDL.Window, renderer :: SDL.Renderer, texture :: SDL.Texture}
 
-screenWidth :: CInt
+screenWidth, screenHeight, borderSize :: CInt
 screenWidth = 640
-
-screenHeight :: CInt
 screenHeight = 500
-
-borderSize :: CInt
 borderSize = 28
 
 initVideo :: IO SDLContext
@@ -48,7 +44,7 @@ eventLoop = do
     let quit = SDL.QuitEvent `elem` map SDL.eventPayload events
 
     let eventIsQPress event =
-            case SDL.eventPayload event of
+            case SDL.eventPayload event of 
             SDL.KeyboardEvent keyboardEvent ->
                 SDL.keyboardEventKeyMotion keyboardEvent == SDL.Pressed
                 && SDL.keysymKeycode (SDL.keyboardEventKeysym keyboardEvent) == SDL.KeycodeQ

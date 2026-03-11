@@ -14,7 +14,7 @@ import Control.Monad (unless, forM, forM_, when)
 import qualified Data.Map as M
 
 
-import CPU6502 ( opcodeTable)
+import CPUInstructions (opcodeTable)
 import MemoryRegisters ( Memory (cycleCount), initMemory, writeMemory, readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters)
 import Debug (opcodeNames, showStatusReg, printRegs)
 import Utilities (showHexF, showHexX)

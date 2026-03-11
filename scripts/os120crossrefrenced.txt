@@ -9798,8 +9798,8 @@
 ;
 ; ***************************************************************************************
 .resetEntryPoint
-    LDA #$40                                            ; the numerical value of the RTI opcode  $^$ 0xd95e
-    STA .nmiEntryPoint                                  ; store RTI instruction at the start of the NMI routine  $^$ 0xd9a7
+    LDA #$40                                            ; the numerical value of the RTI opcode  $^$ 0xd9cd
+    STA .nmiEntryPoint                                  ; store RTI instruction at the start of the NMI routine  $^$ 0xd9cf
 
     SEI                                                 ; disable interrupts just in case  $^$ 0xd9d2
     CLD                                                 ; clear decimal flag  $^$ 0xd9d3
@@ -10821,7 +10821,7 @@
 ; Check if the System VIA triggered the interrupt and deal with it.
 ; ***************************************************************************************
 .irq1CheckSystemVIA
-    LDA .                ; read system VIA interrupt flag register  $^$ 0xdd06
+    LDA .systemVIAInterruptFlagRegister                 ; read system VIA interrupt flag register  $^$ 0xdd06
     BPL .irq1CheckUserVIA                               ; if (the System VIA has not caused interrupt) then branch (try the next thing)  $^$ 0xdd09
 
     AND .systemVIAIRQBitMask                            ; mask with VIA bit mask (normally $FF)  $^$ 0xdd0b
@@ -17139,12 +17139,12 @@
 ; ***************************************************************************************
 .osbyte140EntryPoint
 .osbyte141EntryPoint
-    EOR #140                                            ; A=0 for *TAPE; A=1 for *ROM
+    EOR #140                                            ; A=0 for *TAPE; A=1 for *ROM  $^$ 0xf135
 .setTapeOrROMFS
-    ASL                                                 ; double it
-    STA .tapeOrROMSwitch                                ; store it in filing system flag store
-    CPX #3                                              ; compare with 300 baud
-    JMP .setupTapeBaudRate                              ;
+    ASL                                                 ; double it  $^$ 0xf137
+    STA .tapeOrROMSwitch                                ; store it in filing system flag store  $^$ 0xf138
+    CPX #3                                              ; compare with 300 baud  $^$ 0xf13b
+    JMP .setupTapeBaudRate                              ;  $^$ 0xf13d
 
 ; ***************************************************************************************
 ;
@@ -17160,12 +17160,12 @@
 ;
 ; ***************************************************************************************
 .setupTapeOptions
-    PHP                                                 ; save flags
-    LDA #%10100001                                      ; set sequential access abort if error, no messages
-    STA .tapeOptionsByte                                ; set load/save retry if error, short messages
-    LDA #25                                             ; set interblock gap (2.5 seconds)
-    STA .tapeSequentialAccessInterBlockGap              ; and store it
-    PLP                                                 ; get back flags
+    PHP                                                 ; save flags  $^$ 0xf140
+    LDA #%10100001                                      ; set sequential access abort if error, no messages  $^$ 0xf141
+    STA .tapeOptionsByte                                ; set load/save retry if error, short messages  $^$ 0xf143
+    LDA #25                                             ; set interblock gap (2.5 seconds)  $^$ 0xf145
+    STA .tapeSequentialAccessInterBlockGap              ; and store it  $^$ 0xf147
+    PLP                                                 ; get back flags  $^$ 0xf14a
     ; fall through...
 
 ; ***************************************************************************************
@@ -17177,27 +17177,27 @@
 ;       Z clear for 1200 baud
 ; ***************************************************************************************
 .setupTapeBaudRate
-    PHP                                                 ; push flags
-    LDA #6                                              ; get close files command to FSCV
-    JSR .passToCurrentFilingSystem                      ; and FSCV
-    LDX #6                                              ;
-    PLP                                                 ; get back flags
-    BEQ +                                               ; if (Z set on entry) then branch
-    DEX                                                 ; decrement X
+    PHP                                                 ; push flags  $^$ 0xf14b
+    LDA #6                                              ; get close files command to FSCV  $^$ 0xf14c
+    JSR .passToCurrentFilingSystem                      ; and FSCV  $^$ 0xf14e
+    LDX #6                                              ;  $^$ 0xf151
+    PLP                                                 ; get back flags  $^$ 0xf153
+    BEQ +                                               ; if (Z set on entry) then branch  $^$ 0xf154
+    DEX                                                 ; decrement X  $^$ 0xf156
 +
-    STX .tapeBaudRate                                   ; set current baud rate: X=5 means 1200 baud; X=6 means 300 baud
+    STX .tapeBaudRate                                   ; set current baud rate: X=5 means 1200 baud; X=6 means 300 baud  $^$ 0xf157
 
 
     ; Reset the file based vectors (FILEV; ARGSV; BGETV; BPUTV; GBPBV; FINDV; FSCV) to default values
-    LDX #14                                             ; Loop counter
+    LDX #14                                             ; Loop counter  $^$ 0xf159
 -
-    LDA .defaultFileSystemVectors - 1,X                 ; }
-    STA .vectorFILEV - 1,X                              ; } Reset vectors for file related operations
-    DEX                                                 ; }
-    BNE -                                               ; }
+    LDA .defaultFileSystemVectors - 1,X                 ; }  $^$ 0xf15b
+    STA .vectorFILEV - 1,X                              ; } Reset vectors for file related operations  $^$ 0xf15e
+    DEX                                                 ; }  $^$ 0xf161
+    BNE -                                               ; }  $^$ 0xf162
 
-    STX .fsReadProgressState                            ; progress = 0
-    LDX #.romServiceCallVectorsClaimed                  ; set X to make a Paged ROM service call 'Vectors Claimed'
+    STX .fsReadProgressState                            ; progress = 0  $^$ 0xf164
+    LDX #.romServiceCallVectorsClaimed                  ; set X to make a Paged ROM service call 'Vectors Claimed'  $^$ 0xf166
                                                         ; used after a new filing system overwrites the current set of vectors.
     ; fall through...
 
@@ -17214,32 +17214,32 @@
 ;
 ; ***************************************************************************************
 .osbyte143EntryPoint
-    LDA .currentlySelectedROM                           ; get current ROM number
-    PHA                                                 ; store it
-    TXA                                                 ; command in A
-    LDX #15                                             ; set X=15
+    LDA .currentlySelectedROM                           ; get current ROM number  $^$ 0xf168
+    PHA                                                 ; store it  $^$ 0xf16a
+    TXA                                                 ; command in A  $^$ 0xf16b
+    LDX #15                                             ; set X=15  $^$ 0xf16c
                                                         ; send commands loop
 -
-    INC .romTypeTable,X                                 ; } read bit 7 of rom type
-    DEC .romTypeTable,X                                 ; } which indicates if it has a service routine
+    INC .romTypeTable,X                                 ; } read bit 7 of rom type  $^$ 0xf16e
+    DEC .romTypeTable,X                                 ; } which indicates if it has a service routine  $^$ 0xf171
                                                         ;   (all user ROMs except BASIC should have a service routine)
-    BPL +                                               ; if (not service routine) then branch (skips the BASIC ROM)
-    STX .currentlySelectedROM                           ; store ROM number
-    STX .romSelectRegister                              ; switch the ROM into the memory map
-    JSR .romServiceEntry                                ; and jump to the service entry
-    TAX                                                 ; on exit put A in X
-    BEQ .romChecksFinished                              ; if (zero, i.e. command recognised by ROM) then branch (restore current ROM selection and exit)
-    LDX .currentlySelectedROM                           ; point to next lower ROM
+    BPL +                                               ; if (not service routine) then branch (skips the BASIC ROM)  $^$ 0xf174
+    STX .currentlySelectedROM                           ; store ROM number  $^$ 0xf176
+    STX .romSelectRegister                              ; switch the ROM into the memory map  $^$ 0xf178
+    JSR .romServiceEntry                                ; and jump to the service entry  $^$ 0xf17b
+    TAX                                                 ; on exit put A in X  $^$ 0xf17e
+    BEQ .romChecksFinished                              ; if (zero, i.e. command recognised by ROM) then branch (restore current ROM selection and exit)  $^$ 0xf17f
+    LDX .currentlySelectedROM                           ; point to next lower ROM  $^$ 0xf181
 +
-    DEX                                                 ;
-    BPL -                                               ; and go round loop again
+    DEX                                                 ;  $^$ 0xf183
+    BPL -                                               ; and go round loop again  $^$ 0xf184
 
 .romChecksFinished
-    PLA                                                 ; get back original ROM number
-    STA .currentlySelectedROM                           ; store it in Ram copy
-    STA .romSelectRegister                              ; switch the original ROM into the memory map
-    TXA                                                 ; put X back in A
-    RTS                                                 ;
+    PLA                                                 ; get back original ROM number  $^$ 0xf186
+    STA .currentlySelectedROM                           ; store it in Ram copy  $^$ 0xf187
+    STA .romSelectRegister                              ; switch the original ROM into the memory map  $^$ 0xf189
+    TXA                                                 ; put X back in A  $^$ 0xf18c
+    RTS                                                 ;  $^$ 0xf18d
 
 
 ; ***************************************************************************************
@@ -17268,11 +17268,11 @@
 ; ]
 ; ***************************************************************************************
 .osargsEntryPoint
-    ORA #0                                              ;
-    BNE .exit27                                         ; if (A != 0) then branch (return)
-    CPY #0                                              ;
-    BNE .exit27                                         ; if (Y != 0) then branch (return)
-    LDA .tapeBaudRate                                   ; get current baud rate:
+    ORA #0                                              ;  $^$ 0xf18e
+    BNE .exit27                                         ; if (A != 0) then branch (return)  $^$ 0xf190
+    CPY #0                                              ;  $^$ 0xf192
+    BNE .exit27                                         ; if (Y != 0) then branch (return)  $^$ 0xf194
+    LDA .tapeBaudRate                                   ; get current baud rate:  $^$ 0xf196
                                                         ;
                                                         ;   1200 ; 300  ;  ROM
                                                         ;   baud ; baud ;
@@ -17284,13 +17284,13 @@
     ; AND #3                                                  1  ;   2  ;   3
     ; RTS]
 
-    AND #$FB                                            ;     1  ;   2  ;   1
-    ORA .tapeOrROMSwitch                                ;     1  ;   2  ;   3
-    ASL                                                 ;     2  ;   4  ;   6
-    ORA .tapeOrROMSwitch                                ;     2  ;   4  ;   6
-    LSR                                                 ;     1  ;   2  ;   3
+    AND #$FB                                            ;     1  ;   2  ;   1  $^$ 0xf198
+    ORA .tapeOrROMSwitch                                ;     1  ;   2  ;   3  $^$ 0xf19a
+    ASL                                                 ;     2  ;   4  ;   6  $^$ 0xf19d
+    ORA .tapeOrROMSwitch                                ;     2  ;   4  ;   6  $^$ 0xf19e
+    LSR                                                 ;     1  ;   2  ;   3  $^$ 0xf1a1
 .exit27
-    RTS                                                 ;
+    RTS                                                 ;  $^$ 0xf1a2
 
 
 ; ***************************************************************************************
@@ -17337,17 +17337,17 @@
 ;
 ; ***************************************************************************************
 .fscEntryPoint
-    CMP #7                                              ; }
-    BCS .exit27                                         ; } if A>=7 then branch (exit)
-    STX .fsTempStorage                                  ; save X
-    ASL                                                 ; A=A*2
-    TAX                                                 ; X=A to get offset
-    LDA .fileSystemControlRoutineTable + 1,X            ; get high byte of address
-    PHA                                                 ; push it
-    LDA .fileSystemControlRoutineTable,X                ; get low byte of address
-    PHA                                                 ; push it
-    LDX .fsTempStorage                                  ; restore X
-    RTS                                                 ; this now jumps to (the address
+    CMP #7                                              ; }  $^$ 0xf1b1
+    BCS .exit27                                         ; } if A>=7 then branch (exit)  $^$ 0xf1b3
+    STX .fsTempStorage                                  ; save X  $^$ 0xf1b5
+    ASL                                                 ; A=A*2  $^$ 0xf1b7
+    TAX                                                 ; X=A to get offset  $^$ 0xf1b8
+    LDA .fileSystemControlRoutineTable + 1,X            ; get high byte of address  $^$ 0xf1b9
+    PHA                                                 ; push it  $^$ 0xf1bc
+    LDA .fileSystemControlRoutineTable,X                ; get low byte of address  $^$ 0xf1bd
+    PHA                                                 ; push it  $^$ 0xf1c0
+    LDX .fsTempStorage                                  ; restore X  $^$ 0xf1c1
+    RTS                                                 ; this now jumps to (the address  $^$ 0xf1c3
                                                         ; got from the table) + 1
 
 ; ***************************************************************************************
@@ -17365,47 +17365,47 @@
 ;
 ; ***************************************************************************************
 .loadFile
-    PHP                                                 ; save flags on stack
-    PHA                                                 ; save A on stack
-    JSR .claimSerialSystemForLoadSave                   ; claim serial system for cassette
+    PHP                                                 ; save flags on stack  $^$ 0xf1c4
+    PHA                                                 ; save A on stack  $^$ 0xf1c5
+    JSR .claimSerialSystemForLoadSave                   ; claim serial system for cassette  $^$ 0xf1c6
                                                         ; we can't use the cassette and the
                                                         ; RS-423 system at the same time
                                                         ; so we select the cassette here.
-    LDA .fsExecutionAddressLow                          ; execution address low
-    PHA                                                 ; save A on stack
-    JSR .searchForFile                                  ; search for file
-    PLA                                                 ; get back A
-    BEQ .checkFileAttributes                            ; if (A = 0) then branch
-    LDX #3                                              ; X=3, loop counter
-    LDA #$FF                                            ; A=$FF
+    LDA .fsExecutionAddressLow                          ; execution address low  $^$ 0xf1c9
+    PHA                                                 ; save A on stack  $^$ 0xf1cc
+    JSR .searchForFile                                  ; search for file  $^$ 0xf1cd
+    PLA                                                 ; get back A  $^$ 0xf1d0
+    BEQ .checkFileAttributes                            ; if (A = 0) then branch  $^$ 0xf1d1
+    LDX #3                                              ; X=3, loop counter  $^$ 0xf1d3
+    LDA #$FF                                            ; A=$FF  $^$ 0xf1d5
 -
-    PHA                                                 ; save A on stack
-    LDA .fsLoadAddressLow,X                             ; get load address
-    STA .loadAddressLow,X                               ; store it as current load address
-    PLA                                                 ; get back A
-    AND .loadAddressLow,X                               ;
-    DEX                                                 ; X=X-1
-    BPL -                                               ; until all 4 bytes copied
+    PHA                                                 ; save A on stack  $^$ 0xf1d7
+    LDA .fsLoadAddressLow,X                             ; get load address  $^$ 0xf1d8
+    STA .loadAddressLow,X                               ; store it as current load address  $^$ 0xf1db
+    PLA                                                 ; get back A  $^$ 0xf1dd
+    AND .loadAddressLow,X                               ;  $^$ 0xf1de
+    DEX                                                 ; X=X-1  $^$ 0xf1e0
+    BPL -                                               ; until all 4 bytes copied  $^$ 0xf1e1
 
     ; [peculiarly, the code makes a special point to check for a load
     ;  address of $FFFFFFFF and signals an error if it occurs. Why?]
-    CMP #$FF                                            ; check if all the bytes of the load
+    CMP #$FF                                            ; check if all the bytes of the load  $^$ 0xf1e3
                                                         ; address are $FF
-    BNE .checkFileAttributes                            ; if (address is valid, i.e. not all
+    BNE .checkFileAttributes                            ; if (address is valid, i.e. not all  $^$ 0xf1e5
                                                         ; four bytes $FF) then branch
                                                         ; (continue)
 
     ; handle error because load address is $FFFFFFFF
-    JSR .beepAndCancelTapeOperation                     ; sound bell, reset ACIA and motor off
-    JMP .brkBadAddress                                  ; show 'Bad address' error
+    JSR .beepAndCancelTapeOperation                     ; sound bell, reset ACIA and motor off  $^$ 0xf1e7
+    JMP .brkBadAddress                                  ; show 'Bad address' error  $^$ 0xf1ea
 
 ; ***************************************************************************************
 .checkFileAttributes
-    LDA .fsBlockFlagByte                                ; block flag
-    LSR                                                 ; set carry from bit 0 (file locked)
-    PLA                                                 ; get back A
-    BEQ .checkAndSetEscapeEffect                        ; if (A = 0) then branch (entry is from star run)
-    BCC .loadOrRun                                      ; if (carry clear, i.e. not locked) then branch
+    LDA .fsBlockFlagByte                                ; block flag  $^$ 0xf1ed
+    LSR                                                 ; set carry from bit 0 (file locked)  $^$ 0xf1f0
+    PLA                                                 ; get back A  $^$ 0xf1f1
+    BEQ .checkAndSetEscapeEffect                        ; if (A = 0) then branch (entry is from star run)  $^$ 0xf1f2
+    BCC .loadOrRun                                      ; if (carry clear, i.e. not locked) then branch  $^$ 0xf1f4
     ; fall through...
 
 ; ***************************************************************************************
@@ -17420,44 +17420,44 @@
 ;
 ; ***************************************************************************************
 .fileLocked
-    JSR .cancelTapeOperationAndMotor                    ;
+    JSR .cancelTapeOperationAndMotor                    ;  $^$ 0xf1f6
 
-    BRK                                                 ;
+    BRK                                                 ;  $^$ 0xf1f9
     !byte $D5                                           ; error number
     !text "Locked",0                                    ; 'Locked' error message and zero terminator
 
 ; ***************************************************************************************
 .checkAndSetEscapeEffect
-    BCC .loadOrRun                                      ; if (carry clear) then branch (load)
-    LDA #3                                              ; A=3
-    STA .escapeAndBreakEffect                           ; store to cause ESCAPE disable and memory clear on break
+    BCC .loadOrRun                                      ; if (carry clear) then branch (load)  $^$ 0xf202
+    LDA #3                                              ; A=3  $^$ 0xf204
+    STA .escapeAndBreakEffect                           ; store to cause ESCAPE disable and memory clear on break  $^$ 0xf206
 
 .loadOrRun
-    LDA #%00110000                                      ; check bits 4 and 5
+    LDA #%00110000                                      ; check bits 4 and 5  $^$ 0xf209
 
     ; See .tapeCurrentOptionsByte for description of the options
-    AND .tapeCurrentOptionsByte                         ; check for 'ignore errors'
-    BEQ +                                               ; if (ignore errors) then branch
-    LDA .checksumIsValidFlag                            ; get checksum result
-    BNE .checksumFail                                   ; if (checksum failed) then branch
+    AND .tapeCurrentOptionsByte                         ; check for 'ignore errors'  $^$ 0xf20b
+    BEQ +                                               ; if (ignore errors) then branch  $^$ 0xf20d
+    LDA .checksumIsValidFlag                            ; get checksum result  $^$ 0xf20f
+    BNE .checksumFail                                   ; if (checksum failed) then branch  $^$ 0xf211
 +
-    TYA                                                 ; A=Y
-    PHA                                                 ; save A on stack
-    JSR .startSendToSecondProcessor                     ; send to second processor if present
-    PLA                                                 ; get back A
-    TAY                                                 ; Y=A
-    JSR .setStateForLoadingBlockDataOrReset             ; set state to read block data
+    TYA                                                 ; A=Y  $^$ 0xf213
+    PHA                                                 ; save A on stack  $^$ 0xf214
+    JSR .startSendToSecondProcessor                     ; send to second processor if present  $^$ 0xf215
+    PLA                                                 ; get back A  $^$ 0xf218
+    TAY                                                 ; Y=A  $^$ 0xf219
+    JSR .setStateForLoadingBlockDataOrReset             ; set state to read block data  $^$ 0xf21a
 .checksumFail
-    JSR .loadBlock                                      ; load block from tape
-    BNE .retryAfterFailure                              ; if (not found) then branch (retry)
-    JSR .incrementBlockNumbers                          ; increment current block number
+    JSR .loadBlock                                      ; load block from tape  $^$ 0xf21d
+    BNE .retryAfterFailure                              ; if (not found) then branch (retry)  $^$ 0xf220
+    JSR .incrementBlockNumbers                          ; increment current block number  $^$ 0xf222
 
 +
-    BIT .fsBlockFlagByte                                ; block flag
-    BMI .reachedFinalBlock                              ; if (bit 7 set, i.e. this is the final block) then branch
-    JSR .incrementLoadOrSaveAddress                     ; increment current load address
-    JSR .readBlockHeader                                ; read block header
-    BNE .loadOrRun                                      ; if (non zero) then branch (loop back)
+    BIT .fsBlockFlagByte                                ; block flag  $^$ 0xf225
+    BMI .reachedFinalBlock                              ; if (bit 7 set, i.e. this is the final block) then branch  $^$ 0xf228
+    JSR .incrementLoadOrSaveAddress                     ; increment current load address  $^$ 0xf22a
+    JSR .readBlockHeader                                ; read block header  $^$ 0xf22d
+    BNE .loadOrRun                                      ; if (non zero) then branch (loop back)  $^$ 0xf230
     ; fall through...
 
 ; ***************************************************************************************
@@ -17487,38 +17487,38 @@
 ;
 ; ***************************************************************************************
 .reachedFinalBlock
-    LDY #10                                             ; Y=10
-    LDA .tapeFileLengthLow                              ; file length counter low
-    STA (.osfileBlockAddressLow),Y                      ; OSFILE parameter block
-    INY                                                 ; Y=Y+1
-    LDA .tapeFileLengthHigh                             ; file length counter high
-    STA (.osfileBlockAddressLow),Y                      ; OSFILE parameter block
-    LDA #0                                              ; A=0
-    INY                                                 ; Y=Y+1
-    STA (.osfileBlockAddressLow),Y                      ; OSFILE parameter block
-    INY                                                 ; Y=Y+1
-    STA (.osfileBlockAddressLow),Y                      ; OSFILE parameter block
-    PLP                                                 ; get back flags
+    LDY #10                                             ; Y=10  $^$ 0xf232
+    LDA .tapeFileLengthLow                              ; file length counter low  $^$ 0xf234
+    STA (.osfileBlockAddressLow),Y                      ; OSFILE parameter block  $^$ 0xf236
+    INY                                                 ; Y=Y+1  $^$ 0xf238
+    LDA .tapeFileLengthHigh                             ; file length counter high  $^$ 0xf239
+    STA (.osfileBlockAddressLow),Y                      ; OSFILE parameter block  $^$ 0xf23b
+    LDA #0                                              ; A=0  $^$ 0xf23d
+    INY                                                 ; Y=Y+1  $^$ 0xf23f
+    STA (.osfileBlockAddressLow),Y                      ; OSFILE parameter block  $^$ 0xf240
+    INY                                                 ; Y=Y+1  $^$ 0xf242
+    STA (.osfileBlockAddressLow),Y                      ; OSFILE parameter block  $^$ 0xf243
+    PLP                                                 ; get back flags  $^$ 0xf245
 
 .beepCancelAndPrintReturn
-    JSR .beepAndCancelTapeOperation                     ; bell, reset ACIA and motor
+    JSR .beepAndCancelTapeOperation                     ; bell, reset ACIA and motor  $^$ 0xf246
 
 .printReturnSafely
-    BIT .currentBlockHasDataErrorFlag                   ; current block flag
-    BMI .exit28                                         ;
+    BIT .currentBlockHasDataErrorFlag                   ; current block flag  $^$ 0xf249
+    BMI .exit28                                         ;  $^$ 0xf24b
 
 .saveFlagsPrintCR
-    PHP                                                 ; save flags on stack
-    JSR .safePrintFollowingMessage                      ; print message following call (in this case a newline character)
+    PHP                                                 ; save flags on stack  $^$ 0xf24d
+    JSR .safePrintFollowingMessage                      ; print message following call (in this case a newline character)  $^$ 0xf24e
     !byte .charRETURN, 0                                ; message
-    PLP                                                 ; restore flags from stack
+    PLP                                                 ; restore flags from stack  $^$ 0xf253
 .exit28
-    RTS                                                 ;
+    RTS                                                 ;  $^$ 0xf254
 
 ; ***************************************************************************************
 .retryAfterFailure
-    JSR .searchForSpecifiedBlock                        ; search for a specified block
-    BNE .loadOrRun                                      ; ALWAYS branch (try again)
+    JSR .searchForSpecifiedBlock                        ; search for a specified block  $^$ 0xf255
+    BNE .loadOrRun                                      ; ALWAYS branch (try again)  $^$ 0xf258
 
 ; ***************************************************************************************
 ;
@@ -17531,28 +17531,28 @@
 ;       The filename is copied into the buffer at .filenameToSearchFor
 ; ***************************************************************************************
 .getFilenameFromXY
-    STX .stringInputBufferAddressLow                    ; OS filename/command line pointer
-    STY .stringInputBufferAddressHigh                   ; OS filename/command line pointer
-    LDY #0                                              ; Y=0
-    JSR .gsinitForFilenameParsing                       ; initialise string
-    LDX #0                                              ; X=0
+    STX .stringInputBufferAddressLow                    ; OS filename/command line pointer  $^$ 0xf25a
+    STY .stringInputBufferAddressHigh                   ; OS filename/command line pointer  $^$ 0xf25c
+    LDY #0                                              ; Y=0  $^$ 0xf25e
+    JSR .gsinitForFilenameParsing                       ; initialise string  $^$ 0xf260
+    LDX #0                                              ; X=0  $^$ 0xf263
 -
-    JSR .gsreadEntryPoint                               ; GSREAD call
-    BCS .terminateFilename                              ; if (end of character string) then branch
-    BEQ .brkBadStringJumper                             ; if (zero found) then break ('Bad string' error)
-    STA .filenameToSearchFor,X                          ; store character in tape filename area
-    INX                                                 ; X=X+1
-    CPX #11                                             ; check X with 11
-    BNE -                                               ; if (X != 11) then branch (loop back)
+    JSR .gsreadEntryPoint                               ; GSREAD call  $^$ 0xf265
+    BCS .terminateFilename                              ; if (end of character string) then branch  $^$ 0xf268
+    BEQ .brkBadStringJumper                             ; if (zero found) then break ('Bad string' error)  $^$ 0xf26a
+    STA .filenameToSearchFor,X                          ; store character in tape filename area  $^$ 0xf26c
+    INX                                                 ; X=X+1  $^$ 0xf26f
+    CPX #11                                             ; check X with 11  $^$ 0xf270
+    BNE -                                               ; if (X != 11) then branch (loop back)  $^$ 0xf272
 .brkBadStringJumper
-    JMP .brkBadString                                   ; Bad String error
+    JMP .brkBadString                                   ; Bad String error  $^$ 0xf274
 
 
 ; ***************************************************************************************
 .terminateFilename
-    LDA #0                                              ; terminate filename with 0
-    STA .filenameToSearchFor,X                          ;
-    RTS                                                 ;
+    LDA #0                                              ; terminate filename with 0  $^$ 0xf277
+    STA .filenameToSearchFor,X                          ;  $^$ 0xf279
+    RTS                                                 ;  $^$ 0xf27c
 
 ; ***************************************************************************************
 ;
@@ -17586,39 +17586,39 @@
 ;
 ; ***************************************************************************************
 .osfileEntryPoint
-    PHA                                                 ; save action on stack
-    STX .osfileBlockAddressLow                          ; osfile block pointer low
-    STY .osfileBlockAddressHigh                         ; osfile block pointer high
-    LDY #0                                              ; Y=0
-    LDA (.osfileBlockAddressLow),Y                      ; get address of filename (low byte)
-    TAX                                                 ; store in X
-    INY                                                 ; Y=1
-    LDA (.osfileBlockAddressLow),Y                      ; get address of filename (high byte)
-    TAY                                                 ; store in Y
-    JSR .getFilenameFromXY                              ; get filename from buffer at XY
-    LDY #2                                              ; Y=2
+    PHA                                                 ; save action on stack  $^$ 0xf27d
+    STX .osfileBlockAddressLow                          ; osfile block pointer low  $^$ 0xf27e
+    STY .osfileBlockAddressHigh                         ; osfile block pointer high  $^$ 0xf280
+    LDY #0                                              ; Y=0  $^$ 0xf282
+    LDA (.osfileBlockAddressLow),Y                      ; get address of filename (low byte)  $^$ 0xf284
+    TAX                                                 ; store in X  $^$ 0xf286
+    INY                                                 ; Y=1  $^$ 0xf287
+    LDA (.osfileBlockAddressLow),Y                      ; get address of filename (high byte)  $^$ 0xf288
+    TAY                                                 ; store in Y  $^$ 0xf28a
+    JSR .getFilenameFromXY                              ; get filename from buffer at XY  $^$ 0xf28b
+    LDY #2                                              ; Y=2  $^$ 0xf28e
 
     ; loop to copy load and execution addresses to .loadAddressLow
 -
-    LDA (.osfileBlockAddressLow),Y                      ; copy parameter block (load and exec
+    LDA (.osfileBlockAddressLow),Y                      ; copy parameter block (load and exec  $^$ 0xf290
                                                         ; addresses)...
-    STA .fsLoadAddressLow-2,Y                           ; ...     to .fsLoadAddressLow
-    STA .loadAddressLow-2,Y                             ; ... and to .loadAddressLow
-    INY                                                 ; increment y
-    CPY #10                                             ; compare with limit
-    BNE -                                               ; if (not done yet) then branch (loop back)
+    STA .fsLoadAddressLow-2,Y                           ; ...     to .fsLoadAddressLow  $^$ 0xf292
+    STA .loadAddressLow-2,Y                             ; ... and to .loadAddressLow  $^$ 0xf295
+    INY                                                 ; increment y  $^$ 0xf298
+    CPY #10                                             ; compare with limit  $^$ 0xf299
+    BNE -                                               ; if (not done yet) then branch (loop back)  $^$ 0xf29b
 
     ; get action code, and branch to save if A=0
-    PLA                                                 ; get back A (action)
-    BEQ .saveFileToTape                                 ; if (A == 0) then branch (save file)
+    PLA                                                 ; get back A (action)  $^$ 0xf29d
+    BEQ .saveFileToTape                                 ; if (A == 0) then branch (save file)  $^$ 0xf29e
 
     ; if action is not $FF then exit
-    CMP #$FF                                            ; check A with 255
-    BNE .exit28                                         ; if (A != 255) then branch (exit,
+    CMP #$FF                                            ; check A with 255  $^$ 0xf2a0
+    BNE .exit28                                         ; if (A != 255) then branch (exit,  $^$ 0xf2a2
                                                         ; as cassette / ROM filing systems
                                                         ; have no other options)
     ; load a file from cassette or ROM
-    JMP .loadFile                                       ; load file (with A=255; Y=0)
+    JMP .loadFile                                       ; load file (with A=255; Y=0)  $^$ 0xf2a4
 
 ; ***************************************************************************************
 ;
@@ -17634,113 +17634,113 @@
 ;
 ; ***************************************************************************************
 .saveFileToTape
-    STA .fsBlockNumberLow                               ; zero block number low
-    STA .fsBlockNumberHigh                              ; zero block number high
+    STA .fsBlockNumberLow                               ; zero block number low  $^$ 0xf2a7
+    STA .fsBlockNumberHigh                              ; zero block number high  $^$ 0xf2aa
 
     ; copy start address, end address into zero page copy
     ; Note Y=10 (loop counter) at this point
 -
-    LDA (.osfileBlockAddressLow),Y                      ; read from .OSFILE parameter block
-    STA .tapeSaveStartAddressLow-10,Y                   ; store
-    INY                                                 ; data start and data end address
-    CPY #10 + 8                                         ; check for Y=18
-    BNE -                                               ; if (not finished) then branch (loop back)
+    LDA (.osfileBlockAddressLow),Y                      ; read from .OSFILE parameter block  $^$ 0xf2ad
+    STA .tapeSaveStartAddressLow-10,Y                   ; store  $^$ 0xf2af
+    INY                                                 ; data start and data end address  $^$ 0xf2b2
+    CPY #10 + 8                                         ; check for Y=18  $^$ 0xf2b3
+    BNE -                                               ; if (not finished) then branch (loop back)  $^$ 0xf2b5
 
-    TXA                                                 ; A=X
-    BEQ .brkBadStringJumper                             ; if (no filename found) then branch ('Bad string' error)
+    TXA                                                 ; A=X  $^$ 0xf2b7
+    BEQ .brkBadStringJumper                             ; if (no filename found) then branch ('Bad string' error)  $^$ 0xf2b8
 
-    JSR .claimSerialSystemForLoadSave                   ; claim serial system for load/save on cassette
-    JSR .promptToRecordOnTape                           ; prompt to start recording
-    LDA #0                                              ; A=0 (meaning read bytes from second processor, aka:
+    JSR .claimSerialSystemForLoadSave                   ; claim serial system for load/save on cassette  $^$ 0xf2ba
+    JSR .promptToRecordOnTape                           ; prompt to start recording  $^$ 0xf2bd
+    LDA #0                                              ; A=0 (meaning read bytes from second processor, aka:  $^$ 0xf2c0
                                                         ;      'multiple single byte transfer: 2nd processor to I/O processor')
-    JSR .secondProcessorTransfer                        ; start transfer from 2nd processor (if present)
-    JSR .setupForCassetteWrite                          ; set up tape for write operation
+    JSR .secondProcessorTransfer                        ; start transfer from 2nd processor (if present)  $^$ 0xf2c2
+    JSR .setupForCassetteWrite                          ; set up tape for write operation  $^$ 0xf2c5
 
 .saveToTapeLoop
     ; calculate length to read
-    SEC                                                 ; set carry
-    LDX #$FD                                            ; X = loop counter (loops three times: X=$FD, $FE, $FF)
+    SEC                                                 ; set carry  $^$ 0xf2c8
+    LDX #$FD                                            ; X = loop counter (loops three times: X=$FD, $FE, $FF)  $^$ 0xf2c9
 
     ; loop to work out the amount of file remaining to save, to calculate block length
     ; length = end address - current address
 -
-    LDA .tapeSaveEndAddressLow - $00FD,X                ; read end address
-    SBC .tapeSaveStartAddressLow - $00FD,X              ; subtract current start address
-    STA .fsBlockLengthLow - $00FD,X                     ; store at .fsBlockLengthLow/High and
+    LDA .tapeSaveEndAddressLow - $00FD,X                ; read end address  $^$ 0xf2cb
+    SBC .tapeSaveStartAddressLow - $00FD,X              ; subtract current start address  $^$ 0xf2ce
+    STA .fsBlockLengthLow - $00FD,X                     ; store at .fsBlockLengthLow/High and  $^$ 0xf2d1
                                                         ; .fsBlockFlagByte.
                                                         ; we don't care about overwriting
                                                         ; .fsBlockFlagByte with a length
                                                         ; calculation since we are about to
                                                         ; set it anyway.
-    INX                                                 ; X=X+1
-    BNE -                                               ;
+    INX                                                 ; X=X+1  $^$ 0xf2d4
+    BNE -                                               ;  $^$ 0xf2d5
 
     ; at this point X = 0 (meaning by default it's not the last block, unless we overwrite X below)
 
     ; if high byte of length is non-zero, then save the full block length of $0100
-    TAY                                                 ; Y=A (to set the zero flag if zero)
-    BNE .setFullBlockLength                             ; if (highest byte of subtracted value is non zero) then branch
+    TAY                                                 ; Y=A (to set the zero flag if zero)  $^$ 0xf2d7
+    BNE .setFullBlockLength                             ; if (highest byte of subtracted value is non zero) then branch  $^$ 0xf2d8
 
     ; check the low and mid bytes of the length to see if this this the last block
-    CPX .fsBlockLengthLow                               ; } compare X with zero
-    LDA #$01                                            ; } calculate $0100 - block length
-    SBC .fsBlockLengthHigh                              ; }
-    BCC .setFullBlockLength                             ; if (fsBlockLength >= $0100) then branch
+    CPX .fsBlockLengthLow                               ; } compare X with zero  $^$ 0xf2da
+    LDA #$01                                            ; } calculate $0100 - block length  $^$ 0xf2dd
+    SBC .fsBlockLengthHigh                              ; }  $^$ 0xf2df
+    BCC .setFullBlockLength                             ; if (fsBlockLength >= $0100) then branch  $^$ 0xf2e2
 
     ; yes, this is the last block
-    LDX #$80                                            ; X=$80 (set last block flag)
-    BNE .skipSettingBlockLength                         ; ALWAYS branch
+    LDX #$80                                            ; X=$80 (set last block flag)  $^$ 0xf2e4
+    BNE .skipSettingBlockLength                         ; ALWAYS branch  $^$ 0xf2e6
 
 .setFullBlockLength
-    LDA #1                                              ; }
-    STA .fsBlockLengthHigh                              ; } block length = $0100 (X=0 at this point)
-    STX .fsBlockLengthLow                               ; }
+    LDA #1                                              ; }  $^$ 0xf2e8
+    STA .fsBlockLengthHigh                              ; } block length = $0100 (X=0 at this point)  $^$ 0xf2ea
+    STX .fsBlockLengthLow                               ; }  $^$ 0xf2ed
 
 .skipSettingBlockLength
-    STX .fsBlockFlagByte                                ; store the block flag
-    JSR .saveABlockToTape                               ; write block to tape
-    BMI .exit29                                         ; if (negative) then branch (exit)
-    JSR .incrementLoadOrSaveAddress                     ; increment start save address by a page
-    INC .fsBlockNumberLow                               ; block number
-    BNE .saveToTapeLoop                                 ; if (not 0) then branch (loop back again)
-    INC .fsBlockNumberHigh                              ; block number high
-    BNE .saveToTapeLoop                                 ; ALWAYS branch (since block number high byte should never wrap around) (loop back again)
+    STX .fsBlockFlagByte                                ; store the block flag  $^$ 0xf2f0
+    JSR .saveABlockToTape                               ; write block to tape  $^$ 0xf2f3
+    BMI .exit29                                         ; if (negative) then branch (exit)  $^$ 0xf2f6
+    JSR .incrementLoadOrSaveAddress                     ; increment start save address by a page  $^$ 0xf2f8
+    INC .fsBlockNumberLow                               ; block number  $^$ 0xf2fb
+    BNE .saveToTapeLoop                                 ; if (not 0) then branch (loop back again)  $^$ 0xf2fe
+    INC .fsBlockNumberHigh                              ; block number high  $^$ 0xf300
+    BNE .saveToTapeLoop                                 ; ALWAYS branch (since block number high byte should never wrap around) (loop back again)  $^$ 0xf303
 
 ; ***************************************************************************************
 .starRunEntryPoint
-    JSR .getFilenameFromXY                              ; get filename from buffer at XY
-    LDX #$FF                                            ; X=$FF
-    STX .fsExecutionAddressLow                          ; store in low byte of execution address
-    JSR .loadFile                                       ; load file (with A=0)
-    BIT .tubePresentFlag                                ; check to see if Tube is present
-    BPL +                                               ; if (Tube is not present) then branch
-    LDA .fsExecutionAddressMid2                         ; execution address extend
-    AND .fsExecutionAddressHigh                         ; execution address extend
-    CMP #$FF                                            ; check if all bits set
-    BNE .sendExecAddressToRunFromTube                   ; if (top two bytes of exec address
+    JSR .getFilenameFromXY                              ; get filename from buffer at XY  $^$ 0xf305
+    LDX #$FF                                            ; X=$FF  $^$ 0xf308
+    STX .fsExecutionAddressLow                          ; store in low byte of execution address  $^$ 0xf30a
+    JSR .loadFile                                       ; load file (with A=0)  $^$ 0xf30d
+    BIT .tubePresentFlag                                ; check to see if Tube is present  $^$ 0xf310
+    BPL +                                               ; if (Tube is not present) then branch  $^$ 0xf313
+    LDA .fsExecutionAddressMid2                         ; execution address extend  $^$ 0xf315
+    AND .fsExecutionAddressHigh                         ; execution address extend  $^$ 0xf318
+    CMP #$FF                                            ; check if all bits set  $^$ 0xf31b
+    BNE .sendExecAddressToRunFromTube                   ; if (top two bytes of exec address  $^$ 0xf31d
                                                         ; are not both $FF) then branch
                                                         ; (execute on the Tube)
 +
-    JMP (.fsExecutionAddressLow)                        ; RUN file
+    JMP (.fsExecutionAddressLow)                        ; RUN file  $^$ 0xf31f
 
 ; ***************************************************************************************
 .sendExecAddressToRunFromTube
-    LDX #<.fsExecutionAddressLow                        ; }
-    LDY #>.fsExecutionAddressHigh                       ; } point to execution address
-    LDA #4                                              ; Tube service call 4
-    JMP .secondProcessorCall                            ; and issue to Tube to run file
+    LDX #<.fsExecutionAddressLow                        ; }  $^$ 0xf322
+    LDY #>.fsExecutionAddressHigh                       ; } point to execution address  $^$ 0xf324
+    LDA #4                                              ; Tube service call 4  $^$ 0xf326
+    JMP .secondProcessorCall                            ; and issue to Tube to run file  $^$ 0xf328
 
 ; ***************************************************************************************
 .starCatEntryPoint
-    LDA #%00001000                                      ; A=8 (set catalogue state)
-    JSR .setTapeStatusBits                              ; set ('OR' in) status bits
-    JSR .claimSerialSystemForLoadSave                   ; claim serial system for cassette
-    LDA #0                                              ; A=0 (don't match filename and block number)
-    JSR .searchForBlockCheckFilingSystem                ; read data from tape/ROMFS
-    JSR .cancelTapeOperation                            ;
+    LDA #%00001000                                      ; A=8 (set catalogue state)  $^$ 0xf32b
+    JSR .setTapeStatusBits                              ; set ('OR' in) status bits  $^$ 0xf32d
+    JSR .claimSerialSystemForLoadSave                   ; claim serial system for cassette  $^$ 0xf330
+    LDA #0                                              ; A=0 (don't match filename and block number)  $^$ 0xf333
+    JSR .searchForBlockCheckFilingSystem                ; read data from tape/ROMFS  $^$ 0xf335
+    JSR .cancelTapeOperation                            ;  $^$ 0xf338
 
 .clearCatalogueStatus
-    LDA #%11110111                                      ; clear bit 3 of file system status
+    LDA #%11110111                                      ; clear bit 3 of file system status  $^$ 0xf33b
                                                         ; bit (catalogue status)
     ; fall through...
 
@@ -17756,15 +17756,15 @@
 ;
 ; ***************************************************************************************
 .clearTapeStatusBits
-    AND .fsStatusByte                                   ;
+    AND .fsStatusByte                                   ;  $^$ 0xf33d
 .storeTapeStatusByte
-    STA .fsStatusByte                                   ;
+    STA .fsStatusByte                                   ;  $^$ 0xf33f
 .exit29
-    RTS                                                 ;
+    RTS                                                 ;  $^$ 0xf341
 
 ; ***************************************************************************************
 .setTapeEOFStatus
-    LDA #%01000000                                      ; set bit 6 of cassette status (EOF)
+    LDA #%01000000                                      ; set bit 6 of cassette status (EOF)  $^$ 0xf342
     ; fall through...
 
 ; ***************************************************************************************
@@ -17779,8 +17779,8 @@
 ;
 ; ***************************************************************************************
 .setTapeStatusBits
-    ORA .fsStatusByte                                   ;
-    BNE .storeTapeStatusByte                            ; ALWAYS branch (store status byte)
+    ORA .fsStatusByte                                   ;  $^$ 0xf344
+    BNE .storeTapeStatusByte                            ; ALWAYS branch (store status byte)  $^$ 0xf346
 
 ; ***************************************************************************************
 ;
@@ -17797,72 +17797,72 @@
 ;
 ; ***************************************************************************************
 .searchForBlockCheckFilingSystem
-    PHA                                                 ; save A on stack
-    LDA .tapeOrROMSwitch                                ; filing system flag 0=Tape; 2=ROMFS
-    BEQ .searchForBlockReadHeaderAndCompare             ; if (tape filing system active) then branch
+    PHA                                                 ; save A on stack  $^$ 0xf348
+    LDA .tapeOrROMSwitch                                ; filing system flag 0=Tape; 2=ROMFS  $^$ 0xf349
+    BEQ .searchForBlockReadHeaderAndCompare             ; if (tape filing system active) then branch  $^$ 0xf34c
 
     ; deal with search on ROM FS
-    JSR .setInitialSpeechPHROMNumber                    ; set current Filing System ROM/PHROM
-    JSR .readByteFromROMOrPHROM                         ; get byte from data ROM check type
-    BCC .searchForBlockReadHeaderAndCompare             ; if (carry clear) then branch
-    CLV                                                 ; clear overflow flag
-    BVC .pullAAndReturn                                 ; ALWAYS branch
+    JSR .setInitialSpeechPHROMNumber                    ; set current Filing System ROM/PHROM  $^$ 0xf34e
+    JSR .readByteFromROMOrPHROM                         ; get byte from data ROM check type  $^$ 0xf351
+    BCC .searchForBlockReadHeaderAndCompare             ; if (carry clear) then branch  $^$ 0xf354
+    CLV                                                 ; clear overflow flag  $^$ 0xf356
+    BVC .pullAAndReturn                                 ; ALWAYS branch  $^$ 0xf357
 
 ; ***************************************************************************************
 .searchForBlockReadHeaderAndCompare
-    JSR .readBlockHeader                                ; read block header
-    LDA .fsBlockNumberLow                               ; block number
-    STA .currentBlockNumberLow                          ; current block number low
-    LDA .fsBlockNumberHigh                              ; block number high
-    STA .currentBlockNumberHigh                         ; current block number high
-    LDX #$FF                                            ; X=$FF
-    STX .fsLastBlockReadFlagsCopy                       ; copy of last read block flag
-    INX                                                 ; X=0
-    STX .currentBlockHasDataErrorFlag                   ; reset data error flag to zero
-    BEQ +                                               ; ALWAYS branch
+    JSR .readBlockHeader                                ; read block header  $^$ 0xf359
+    LDA .fsBlockNumberLow                               ; block number  $^$ 0xf35c
+    STA .currentBlockNumberLow                          ; current block number low  $^$ 0xf35f
+    LDA .fsBlockNumberHigh                              ; block number high  $^$ 0xf361
+    STA .currentBlockNumberHigh                         ; current block number high  $^$ 0xf364
+    LDX #$FF                                            ; X=$FF  $^$ 0xf366
+    STX .fsLastBlockReadFlagsCopy                       ; copy of last read block flag  $^$ 0xf368
+    INX                                                 ; X=0  $^$ 0xf36b
+    STX .currentBlockHasDataErrorFlag                   ; reset data error flag to zero  $^$ 0xf36c
+    BEQ +                                               ; ALWAYS branch  $^$ 0xf36e
 
 .searchForBlockLoop
-    JSR .incrementBlockNumbers                          ; increment current block number
-    JSR .readBlockHeader                                ; read block header
+    JSR .incrementBlockNumbers                          ; increment current block number  $^$ 0xf370
+    JSR .readBlockHeader                                ; read block header  $^$ 0xf373
 
 +
-    LDA .tapeOrROMSwitch                                ; get filing system flag 0=tape; 2=ROMFS
-    BEQ +                                               ; if (tape filing system is active) then branch
-    BVC .pullAAndReturn                                 ; if (final block, on ROMFS) then branch (exit)
+    LDA .tapeOrROMSwitch                                ; get filing system flag 0=tape; 2=ROMFS  $^$ 0xf376
+    BEQ +                                               ; if (tape filing system is active) then branch  $^$ 0xf379
+    BVC .pullAAndReturn                                 ; if (final block, on ROMFS) then branch (exit)  $^$ 0xf37b
 
 +
-    PLA                                                 ; get back A (match flag)
-    PHA                                                 ; save A on stack
-    BEQ .finishReadingBlockAndContinue                  ; if (A == 0, i.e. match anything) then branch
-    JSR .compareFilenames                               ; check filename header block matches searched Fn
-    BNE .messageAndFinishBlock                          ; if (filenames don't match) then branch
-    LDA #%00110000                                      ;
-    AND .tapeCurrentOptionsByte                         ; check bits 4/5 of current options,
+    PLA                                                 ; get back A (match flag)  $^$ 0xf37d
+    PHA                                                 ; save A on stack  $^$ 0xf37e
+    BEQ .finishReadingBlockAndContinue                  ; if (A == 0, i.e. match anything) then branch  $^$ 0xf37f
+    JSR .compareFilenames                               ; check filename header block matches searched Fn  $^$ 0xf381
+    BNE .messageAndFinishBlock                          ; if (filenames don't match) then branch  $^$ 0xf384
+    LDA #%00110000                                      ;  $^$ 0xf386
+    AND .tapeCurrentOptionsByte                         ; check bits 4/5 of current options,  $^$ 0xf388
                                                         ; checking for 'ignore errors'
-    BEQ .pullAAndReturn                                 ; if (ignore errors) then branch
-    LDA .fsBlockNumberLow                               ; block number
-    CMP .nextBlockNumberLow                             ; next block number low
-    BNE .messageAndFinishBlock                          ;
-    LDA .fsBlockNumberHigh                              ; block number high
-    CMP .nextBlockNumberHigh                            ; next block number high
-    BNE .messageAndFinishBlock                          ;
+    BEQ .pullAAndReturn                                 ; if (ignore errors) then branch  $^$ 0xf38a
+    LDA .fsBlockNumberLow                               ; block number  $^$ 0xf38c
+    CMP .nextBlockNumberLow                             ; next block number low  $^$ 0xf38f
+    BNE .messageAndFinishBlock                          ;  $^$ 0xf391
+    LDA .fsBlockNumberHigh                              ; block number high  $^$ 0xf393
+    CMP .nextBlockNumberHigh                            ; next block number high  $^$ 0xf396
+    BNE .messageAndFinishBlock                          ;  $^$ 0xf398
 
 .pullAAndReturn
-    PLA                                                 ; get back A
-    RTS                                                 ;
+    PLA                                                 ; get back A  $^$ 0xf39a
+    RTS                                                 ;  $^$ 0xf39b
 
 .messageAndFinishBlock
-    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape; 2=ROMFS
-    BEQ .finishReadingBlockAndContinue                  ; if (tape filing system active) then branch
+    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape; 2=ROMFS  $^$ 0xf39c
+    BEQ .finishReadingBlockAndContinue                  ; if (tape filing system active) then branch  $^$ 0xf39f
 
 .skipMessaging
-    JSR .setROMOrPHROMAddress                           ; set ROM address
+    JSR .setROMOrPHROMAddress                           ; set ROM address  $^$ 0xf3a1
 
 .resetBlockNumberAndContinue
-    LDA #$FF                                            ; A=$FF to reset block number
-    STA .fsBlockNumberLow                               ; block number low
-    STA .fsBlockNumberHigh                              ; block number high
-    BNE .searchForBlockLoop                             ; ALWAYS branch
+    LDA #$FF                                            ; A=$FF to reset block number  $^$ 0xf3a4
+    STA .fsBlockNumberLow                               ; block number low  $^$ 0xf3a6
+    STA .fsBlockNumberHigh                              ; block number high  $^$ 0xf3a9
+    BNE .searchForBlockLoop                             ; ALWAYS branch  $^$ 0xf3ac
 
 ; ***************************************************************************************
 ;
@@ -17873,20 +17873,20 @@
 ;
 ; ***************************************************************************************
 .finishReadingBlockAndContinue
-    BVC +                                               ; if (V clear) then branch
-    LDA #$FF                                            ; A=$FF (searching)
-    JSR .setCharAThenProgressState4OrReset              ; update to progress state 4 (if block length > 0)
+    BVC +                                               ; if (V clear) then branch  $^$ 0xf3ae
+    LDA #$FF                                            ; A=$FF (searching)  $^$ 0xf3b0
+    JSR .setCharAThenProgressState4OrReset              ; update to progress state 4 (if block length > 0)  $^$ 0xf3b2
 +
-    LDX #0                                              ; X=0
-    JSR .checkForChecksumError                          ; report 'Data?' if necessary
-    LDA .tapeOrROMSwitch                                ; get current filing system
-    BEQ +                                               ; if (tape filing system) then branch
-    BIT .tapeCurrentOptionsByte                         ; check current options (bit 6)
-    BVC .skipMessaging                                  ; if (no long messages) then branch (back)
+    LDX #0                                              ; X=0  $^$ 0xf3b5
+    JSR .checkForChecksumError                          ; report 'Data?' if necessary  $^$ 0xf3b7
+    LDA .tapeOrROMSwitch                                ; get current filing system  $^$ 0xf3ba
+    BEQ +                                               ; if (tape filing system) then branch  $^$ 0xf3bd
+    BIT .tapeCurrentOptionsByte                         ; check current options (bit 6)  $^$ 0xf3bf
+    BVC .skipMessaging                                  ; if (no long messages) then branch (back)  $^$ 0xf3c1
 +
-    BIT .fsBlockFlagByte                                ; block flag
-    BMI .resetBlockNumberAndContinue                    ; if (-ve) then branch
-    BPL .searchForBlockLoop                             ; ALWAYS branch (loop back and do it again)
+    BIT .fsBlockFlagByte                                ; block flag  $^$ 0xf3c3
+    BMI .resetBlockNumberAndContinue                    ; if (-ve) then branch  $^$ 0xf3c6
+    BPL .searchForBlockLoop                             ; ALWAYS branch (loop back and do it again)  $^$ 0xf3c8
 
 
 ; ***************************************************************************************
@@ -17916,35 +17916,35 @@
 ;
 ; ***************************************************************************************
 .osfindEntryPoint
-    STA .fsTempStorage                                  ; save action in temporary store
-    TXA                                                 ; }
-    PHA                                                 ; }
-    TYA                                                 ; } save X and Y on the stack
-    PHA                                                 ; }
-    LDA .fsTempStorage                                  ; recall action
-    BNE .openAFile                                      ; if (A is non zero) then branch (open a specific file)
+    STA .fsTempStorage                                  ; save action in temporary store  $^$ 0xf3ca
+    TXA                                                 ; }  $^$ 0xf3cc
+    PHA                                                 ; }  $^$ 0xf3cd
+    TYA                                                 ; } save X and Y on the stack  $^$ 0xf3ce
+    PHA                                                 ; }  $^$ 0xf3cf
+    LDA .fsTempStorage                                  ; recall action  $^$ 0xf3d0
+    BNE .openAFile                                      ; if (A is non zero) then branch (open a specific file)  $^$ 0xf3d2
 
 .closeOneFile
-    TYA                                                 ; A=Y
-    BNE +                                               ; if (A is not zero) then branch (close specified file)
-    JSR .osbyte119EntryPoint                            ; close all SPOOL/EXEC files using OSBYTE 119
-    JSR .closeFileThatsOpenForOutput                    ; close file open for output
+    TYA                                                 ; A=Y  $^$ 0xf3d4
+    BNE +                                               ; if (A is not zero) then branch (close specified file)  $^$ 0xf3d5
+    JSR .osbyte119EntryPoint                            ; close all SPOOL/EXEC files using OSBYTE 119  $^$ 0xf3d7
+    JSR .closeFileThatsOpenForOutput                    ; close file open for output  $^$ 0xf3da
 -
-    LSR .fsStatusByte                                   ; shift right (bit zero into carry)
-    ASL .fsStatusByte                                   ; shift left (clear bit zero)
-    BCC .finishWithError                                ; if (carry clear, i.e. no input file open) then branch
+    LSR .fsStatusByte                                   ; shift right (bit zero into carry)  $^$ 0xf3dd
+    ASL .fsStatusByte                                   ; shift left (clear bit zero)  $^$ 0xf3df
+    BCC .finishWithError                                ; if (carry clear, i.e. no input file open) then branch  $^$ 0xf3e1
 +
-    LSR                                                 ; A contains file handle so shift bit 0 into carry
-    BCS -                                               ; if (carry set) then branch (close input file)
-    LSR                                                 ; shift bit 1 into carry
-    BCS .closeOutputFile                                ; if (carry set) then branch (close output file)
-    JMP .channelError                                   ; report 'Channel error'
+    LSR                                                 ; A contains file handle so shift bit 0 into carry  $^$ 0xf3e3
+    BCS -                                               ; if (carry set) then branch (close input file)  $^$ 0xf3e4
+    LSR                                                 ; shift bit 1 into carry  $^$ 0xf3e6
+    BCS .closeOutputFile                                ; if (carry set) then branch (close output file)  $^$ 0xf3e7
+    JMP .channelError                                   ; report 'Channel error'  $^$ 0xf3e9
                                                         ; as tape filing system can only support one input and one output file
 
 .closeOutputFile
-    JSR .closeFileThatsOpenForOutput                    ; close file open for output
+    JSR .closeFileThatsOpenForOutput                    ; close file open for output  $^$ 0xf3ec
 .finishWithError
-    JMP .restoreRegistersAndExit                        ; and exit
+    JMP .restoreRegistersAndExit                        ; and exit  $^$ 0xf3ef
 
 ; ***************************************************************************************
 ;
@@ -17969,40 +17969,40 @@
 ;
 ; ***************************************************************************************
 .openAFile
-    JSR .getFilenameFromXY                              ; get filename from buffer at XY
-    BIT .fsTempStorage                                  ; get action (OSFIND value of A on entry)
-    BVC .openAFileForOutputOnly                         ; if (bit 6 not set, i.e. it's to be an output only file) then branch
+    JSR .getFilenameFromXY                              ; get filename from buffer at XY  $^$ 0xf3f2
+    BIT .fsTempStorage                                  ; get action (OSFIND value of A on entry)  $^$ 0xf3f5
+    BVC .openAFileForOutputOnly                         ; if (bit 6 not set, i.e. it's to be an output only file) then branch  $^$ 0xf3f7
 
     ; open a file for input
-    LDA #0                                              ; it's an input file
-    STA .bgetBufferOffset                               ; BGET buffer offset for next byte
-    STA .nextBGETBlockLow                               ; Expected BGET file block number low
-    STA .nextBGETBlockHigh                              ; expected BGET file block number high
-    LDA #%00111110                                      ; }
-    JSR .clearTapeStatusBits                            ; } clear 'input file open' bit; clear 'EOF reached'; clear 'EOF warning given'
-    JSR .claimSerialSystemForSequentialAccess           ; claim serial system and set OPTions
-    PHP                                                 ; save flags on stack
-    JSR .searchForFile                                  ; search for file
-    JSR .checkLockedFlag                                ; check protection bit of block status and respond
-    PLP                                                 ; get back flags
-    LDX #$FF                                            ; X=loop counter
+    LDA #0                                              ; it's an input file  $^$ 0xf3f9
+    STA .bgetBufferOffset                               ; BGET buffer offset for next byte  $^$ 0xf3fb
+    STA .nextBGETBlockLow                               ; Expected BGET file block number low  $^$ 0xf3fe
+    STA .nextBGETBlockHigh                              ; expected BGET file block number high  $^$ 0xf401
+    LDA #%00111110                                      ; }  $^$ 0xf404
+    JSR .clearTapeStatusBits                            ; } clear 'input file open' bit; clear 'EOF reached'; clear 'EOF warning given'  $^$ 0xf406
+    JSR .claimSerialSystemForSequentialAccess           ; claim serial system and set OPTions  $^$ 0xf409
+    PHP                                                 ; save flags on stack  $^$ 0xf40c
+    JSR .searchForFile                                  ; search for file  $^$ 0xf40d
+    JSR .checkLockedFlag                                ; check protection bit of block status and respond  $^$ 0xf410
+    PLP                                                 ; get back flags  $^$ 0xf413
+    LDX #$FF                                            ; X=loop counter  $^$ 0xf414
 
 -
-    INX                                                 ; X=X+1
-    LDA .fsFilename,X                                   ; copy file name character
-    STA .bgetFilename,X                                 ; and store as BGET filename
-    BNE -                                               ; until end of filename (zero terminator)
+    INX                                                 ; X=X+1  $^$ 0xf416
+    LDA .fsFilename,X                                   ; copy file name character  $^$ 0xf417
+    STA .bgetFilename,X                                 ; and store as BGET filename  $^$ 0xf41a
+    BNE -                                               ; until end of filename (zero terminator)  $^$ 0xf41d
 
-    LDA #%00000001                                      ; A=1 to set bit for 'input file open'
-    JSR .setTapeStatusBits                              ; set status bit
-    LDA .tapeInputCurrentBlockSizeLow                   ; tape filing system currently resident file block length low
-    ORA .tapeInputCurrentBlockSizeHigh                  ; tape filing system currently resident file block length high
-    BNE +                                               ; if (block length is no zero) then branch
-    JSR .setTapeEOFStatus                               ; set tape filing system status bit 6 (EOF reached)
+    LDA #%00000001                                      ; A=1 to set bit for 'input file open'  $^$ 0xf41f
+    JSR .setTapeStatusBits                              ; set status bit  $^$ 0xf421
+    LDA .tapeInputCurrentBlockSizeLow                   ; tape filing system currently resident file block length low  $^$ 0xf424
+    ORA .tapeInputCurrentBlockSizeHigh                  ; tape filing system currently resident file block length high  $^$ 0xf427
+    BNE +                                               ; if (block length is no zero) then branch  $^$ 0xf42a
+    JSR .setTapeEOFStatus                               ; set tape filing system status bit 6 (EOF reached)  $^$ 0xf42c
 +
-    LDA #1                                              ; }
-    ORA .tapeOrROMSwitch                                ; } get input file handle, 1 = tape; 3=ROMFS
-    BNE .returnAWithXYRestoredFromStack                 ; ALWAYS branch (restore registers and exit)
+    LDA #1                                              ; }  $^$ 0xf42f
+    ORA .tapeOrROMSwitch                                ; } get input file handle, 1 = tape; 3=ROMFS  $^$ 0xf431
+    BNE .returnAWithXYRestoredFromStack                 ; ALWAYS branch (restore registers and exit)  $^$ 0xf434
 
 ; ***************************************************************************************
 ;
@@ -18012,104 +18012,104 @@
 ;       X is length of filename
 ; ***************************************************************************************
 .openAFileForOutputOnly
-    TXA                                                 ; A=X
-    BNE +                                               ; if (filename length is non-zero) then branch
-    JMP .brkBadString                                   ; output 'Bad String' error
+    TXA                                                 ; A=X  $^$ 0xf436
+    BNE +                                               ; if (filename length is non-zero) then branch  $^$ 0xf437
+    JMP .brkBadString                                   ; output 'Bad String' error  $^$ 0xf439
 
 +
-    LDX #$FF                                            ; X=$FF
+    LDX #$FF                                            ; X=$FF  $^$ 0xf43c
 .copyFilenameLoop
-    INX                                                 ; X=X+1
-    LDA .filenameToSearchFor,X                          ; sought filename
-    STA .tapeBlockHeaderStart,X                         ; write it to BPUT file header block
-    BNE .copyFilenameLoop                               ; until A=0 (zero terminator at end of filename)
+    INX                                                 ; X=X+1  $^$ 0xf43e
+    LDA .filenameToSearchFor,X                          ; sought filename  $^$ 0xf43f
+    STA .tapeBlockHeaderStart,X                         ; write it to BPUT file header block  $^$ 0xf442
+    BNE .copyFilenameLoop                               ; until A=0 (zero terminator at end of filename)  $^$ 0xf445
 
-    LDA #$FF                                            ; A=$FF
-    LDX #8                                              ; X=8
+    LDA #$FF                                            ; A=$FF  $^$ 0xf447
+    LDX #8                                              ; X=8  $^$ 0xf449
 -
-    STA .tapeBlockLoadAddressLow-1,X                    ; set load and exec address to $FF
-    DEX                                                 ; X=X-1
-    BNE -                                               ;
+    STA .tapeBlockLoadAddressLow-1,X                    ; set load and exec address to $FF  $^$ 0xf44b
+    DEX                                                 ; X=X-1  $^$ 0xf44e
+    BNE -                                               ;  $^$ 0xf44f
 
-    TXA                                                 ; A=0
-    LDX #.tapeBlockNumberLow - .tapeBlockHeaderStart    ; X=loop counter from $14 to $1E
+    TXA                                                 ; A=0  $^$ 0xf451
+    LDX #.tapeBlockNumberLow - .tapeBlockHeaderStart    ; X=loop counter from $14 to $1E  $^$ 0xf452
 -
-    STA .tapeBlockHeaderStart,X                         ; BPUT file header block
-    INX                                                 ; X=X+1
-    CPX #.bgetBufferOffset - .tapeBlockHeaderStart      ; this zeros BPUT block
-    BNE -                                               ;
+    STA .tapeBlockHeaderStart,X                         ; BPUT file header block  $^$ 0xf454
+    INX                                                 ; X=X+1  $^$ 0xf457
+    CPX #.bgetBufferOffset - .tapeBlockHeaderStart      ; this zeros BPUT block  $^$ 0xf458
+    BNE -                                               ;  $^$ 0xf45a
 
-    ROL .tapeBlockLengthHigh                            ;
-    JSR .claimSerialSystemForLoadSave                   ; claim serial system for cassette load/save
-    JSR .promptToRecordOnTape                           ; prompt to start recording
-    JSR .cancelTapeOperationAndMotor                    ;
-    LDA #%00000010                                      ; } set the tape status bit
-    JSR .setTapeStatusBits                              ; } for 'output file open'
-    LDA #2                                              ; A=2=file handle of (tape) file open for output
+    ROL .tapeBlockLengthHigh                            ;  $^$ 0xf45c
+    JSR .claimSerialSystemForLoadSave                   ; claim serial system for cassette load/save  $^$ 0xf45f
+    JSR .promptToRecordOnTape                           ; prompt to start recording  $^$ 0xf462
+    JSR .cancelTapeOperationAndMotor                    ;  $^$ 0xf465
+    LDA #%00000010                                      ; } set the tape status bit  $^$ 0xf468
+    JSR .setTapeStatusBits                              ; } for 'output file open'  $^$ 0xf46a
+    LDA #2                                              ; A=2=file handle of (tape) file open for output  $^$ 0xf46d
 
 .returnAWithXYRestoredFromStack
-    STA .fsTempStorage                                  ; store value of A temporarily
+    STA .fsTempStorage                                  ; store value of A temporarily  $^$ 0xf46f
 
 .restoreRegistersAndExit
-    PLA                                                 ; }
-    TAY                                                 ; }
-    PLA                                                 ; } Restore X and Y registers
-    TAX                                                 ; }
-    LDA .fsTempStorage                                  ; recall temporary store into A
+    PLA                                                 ; }  $^$ 0xf471
+    TAY                                                 ; }  $^$ 0xf472
+    PLA                                                 ; } Restore X and Y registers  $^$ 0xf473
+    TAX                                                 ; }  $^$ 0xf474
+    LDA .fsTempStorage                                  ; recall temporary store into A  $^$ 0xf475
 .exit30
-    RTS                                                 ;
+    RTS                                                 ;  $^$ 0xf477
 
 ; ***************************************************************************************
 .closeFileThatsOpenForOutput
-    LDA #%00000010                                      ; }
-    AND .fsStatusByte                                   ; } clear all of tape status byte except bit 1
-    BEQ .exit30                                         ; if (output file not open) then branch (exit)
+    LDA #%00000010                                      ; }  $^$ 0xf478
+    AND .fsStatusByte                                   ; } clear all of tape status byte except bit 1  $^$ 0xf47a
+    BEQ .exit30                                         ; if (output file not open) then branch (exit)  $^$ 0xf47c
 
     ; an output file is open
-    LDA #0                                              ; A=0
-    STA .tapeBlockLengthHigh                            ; setting block length to current value of BPUT offset
-    LDA #$80                                            ; A=$80 (last block)
-    LDX .bputBufferOffset                               ; get BPUT buffer offset
-    STX .tapeBlockLengthLow                             ; setting block length to current value of BPUT offset
-    STA .tapeBlockFlagByte                              ; mark current block as last
-    JSR .saveSequentialAccessBlockToTape                ; save block to tape
-    LDA #%11111101                                      ; }
-    JMP .clearTapeStatusBits                            ; } clear bit 1 of the tape status (no file is open for output) and return
+    LDA #0                                              ; A=0  $^$ 0xf47e
+    STA .tapeBlockLengthHigh                            ; setting block length to current value of BPUT offset  $^$ 0xf480
+    LDA #$80                                            ; A=$80 (last block)  $^$ 0xf483
+    LDX .bputBufferOffset                               ; get BPUT buffer offset  $^$ 0xf485
+    STX .tapeBlockLengthLow                             ; setting block length to current value of BPUT offset  $^$ 0xf488
+    STA .tapeBlockFlagByte                              ; mark current block as last  $^$ 0xf48b
+    JSR .saveSequentialAccessBlockToTape                ; save block to tape  $^$ 0xf48e
+    LDA #%11111101                                      ; }  $^$ 0xf491
+    JMP .clearTapeStatusBits                            ; } clear bit 1 of the tape status (no file is open for output) and return  $^$ 0xf493
 
 ; ***************************************************************************************
 ; Sequential access writes bytes instead of files. (As used by BGET and BPUT in BASIC).
 .saveSequentialAccessBlockToTape
-    JSR .claimSerialSystemForSequentialAccess           ; claim serial system and set OPTions
+    JSR .claimSerialSystemForSequentialAccess           ; claim serial system and set OPTions  $^$ 0xf496
 
-    LDX #17                                             ; loop counter
+    LDX #17                                             ; loop counter  $^$ 0xf499
 -
-    LDA .tapeBlockLoadAddressLow,X                      ; }
-    STA .fsLoadAddressLow,X                             ; } copy header block
-    DEX                                                 ; X=X-1
-    BPL -                                               ; loop back until X=255
+    LDA .tapeBlockLoadAddressLow,X                      ; }  $^$ 0xf49b
+    STA .fsLoadAddressLow,X                             ; } copy header block  $^$ 0xf49e
+    DEX                                                 ; X=X-1  $^$ 0xf4a1
+    BPL -                                               ; loop back until X=255  $^$ 0xf4a2
 
     ; set load address to "FFFF0900"
-    STX .tapeSaveStartAddressMid2                       ; store $FF
-    STX .tapeSaveStartAddressHigh                       ; store $FF
-    INX                                                 ; increment X (to zero)
-    STX .tapeSaveStartAddressLow                        ; store $00
-    LDA #$09                                            ;
-    STA .tapeSaveStartAddressMid1                       ; store $09
+    STX .tapeSaveStartAddressMid2                       ; store $FF  $^$ 0xf4a4
+    STX .tapeSaveStartAddressHigh                       ; store $FF  $^$ 0xf4a6
+    INX                                                 ; increment X (to zero)  $^$ 0xf4a8
+    STX .tapeSaveStartAddressLow                        ; store $00  $^$ 0xf4a9
+    LDA #$09                                            ;  $^$ 0xf4ab
+    STA .tapeSaveStartAddressMid1                       ; store $09  $^$ 0xf4ad
 
     ; Copy
-    LDX #(.tapeBlockFilename-1) - .vduVariablesStart    ;
-    JSR .copyToSoughtFilename                           ; copy filename from .tapeBlockFilename to .filenameToSearchFor
-    STA .fsLastBlockReadFlagsCopy                       ; set copy of last read block flag to zero
-    JSR .zeroFileHandleAndMotorOn                       ; switch Motor On
-    JSR .setupForCassetteWrite                          ; set up tape filing system for write operation
-    JSR .saveABlockToTape                               ; write block to tape
+    LDX #(.tapeBlockFilename-1) - .vduVariablesStart    ;  $^$ 0xf4af
+    JSR .copyToSoughtFilename                           ; copy filename from .tapeBlockFilename to .filenameToSearchFor  $^$ 0xf4b1
+    STA .fsLastBlockReadFlagsCopy                       ; set copy of last read block flag to zero  $^$ 0xf4b4
+    JSR .zeroFileHandleAndMotorOn                       ; switch Motor On  $^$ 0xf4b7
+    JSR .setupForCassetteWrite                          ; set up tape filing system for write operation  $^$ 0xf4ba
+    JSR .saveABlockToTape                               ; write block to tape  $^$ 0xf4bd
 
     ; increment block number
-    INC .tapeBlockNumberLow                             ; block number low
-    BNE +                                               ;
-    INC .tapeBlockNumberHigh                            ; block number high
+    INC .tapeBlockNumberLow                             ; block number low  $^$ 0xf4c0
+    BNE +                                               ;  $^$ 0xf4c3
+    INC .tapeBlockNumberHigh                            ; block number high  $^$ 0xf4c5
 +
-    RTS                                                 ;
+    RTS                                                 ;  $^$ 0xf4c8
 
 ; ***************************************************************************************
 ;
@@ -18127,64 +18127,64 @@
 ;
 ; ***************************************************************************************
 .osbgetEntryPoint
-    TXA                                                 ; A=X
-    PHA                                                 ; save A on stack
-    TYA                                                 ; A=Y
-    PHA                                                 ; save A on stack
-    LDA #1                                              ; A=1 (check file is open for reading)
-    JSR .checkFileIsOpen                                ; check conditions for OSBGET are OK
-    LDA .fsStatusByte                                   ; tape/ROM FS status byte
-    ASL                                                 ; shift bit 7 into carry (EOF warning given)
-    BCS .eofErrorMessage                                ; if (carry set) then branch
-    ASL                                                 ; shift bit 6 into carry
-    BCC .notEOF                                         ; if (carry clear, i.e. EOF not reached) then branch
-    LDA #%10000000                                      ; }
-    JSR .setTapeStatusBits                              ; } set bit 7 of status byte ('EOF warning given')
-    LDA #$FE                                            ; A = return value = $FE (end of file)
-    BCS .storeFileStatus                                ; if (carry set) then branch
+    TXA                                                 ; A=X  $^$ 0xf4c9
+    PHA                                                 ; save A on stack  $^$ 0xf4ca
+    TYA                                                 ; A=Y  $^$ 0xf4cb
+    PHA                                                 ; save A on stack  $^$ 0xf4cc
+    LDA #1                                              ; A=1 (check file is open for reading)  $^$ 0xf4cd
+    JSR .checkFileIsOpen                                ; check conditions for OSBGET are OK  $^$ 0xf4cf
+    LDA .fsStatusByte                                   ; tape/ROM FS status byte  $^$ 0xf4d2
+    ASL                                                 ; shift bit 7 into carry (EOF warning given)  $^$ 0xf4d4
+    BCS .eofErrorMessage                                ; if (carry set) then branch  $^$ 0xf4d5
+    ASL                                                 ; shift bit 6 into carry  $^$ 0xf4d7
+    BCC .notEOF                                         ; if (carry clear, i.e. EOF not reached) then branch  $^$ 0xf4d8
+    LDA #%10000000                                      ; }  $^$ 0xf4da
+    JSR .setTapeStatusBits                              ; } set bit 7 of status byte ('EOF warning given')  $^$ 0xf4dc
+    LDA #$FE                                            ; A = return value = $FE (end of file)  $^$ 0xf4df
+    BCS .storeFileStatus                                ; if (carry set) then branch  $^$ 0xf4e1
 
 .notEOF
-    LDX .bgetBufferOffset                               ; BGET buffer offset for next byte
-    INX                                                 ; X=X+1
-    CPX .tapeInputCurrentBlockSizeLow                   ; tape filing system currently resident file block length low
-    BNE .readFromFSBufferAndContinue                    ; if (not end of block) then branch (read a byte from buffer)
+    LDX .bgetBufferOffset                               ; BGET buffer offset for next byte  $^$ 0xf4e3
+    INX                                                 ; X=X+1  $^$ 0xf4e6
+    CPX .tapeInputCurrentBlockSizeLow                   ; tape filing system currently resident file block length low  $^$ 0xf4e7
+    BNE .readFromFSBufferAndContinue                    ; if (not end of block) then branch (read a byte from buffer)  $^$ 0xf4ea
 
-    BIT .blockFlagOfCurrentlyResidentBlock              ; block flag of currently resident block
-    BMI .setEOF                                         ; if (this is the last block) then branch
-    LDA .lastCharacterOfCurrentlyResidentBlock          ; last character of currently resident block
-    PHA                                                 ; save A on stack
-    JSR .claimSerialSystemForSequentialAccess           ; claim serial system and set OPTions
-    PHP                                                 ; save flags on stack
-    JSR .bgetReadBlockAndHeader                         ; read in a new block
-    PLP                                                 ; get back flags
-    PLA                                                 ; get back A
-    STA .fsTempStorage                                  ; store return value: last byte of current block
-    CLC                                                 ; clear carry flag
-    BIT .blockFlagOfCurrentlyResidentBlock              ; block flag of currently resident block
-    BPL .incrementAndFinish                             ; if (not last block) then branch
-    LDA .tapeInputCurrentBlockSizeLow                   ; get block length
-    ORA .tapeInputCurrentBlockSizeHigh                  ; OR with high byte
-    BNE .incrementAndFinish                             ; if (block size not zero) then branch
-    JSR .setTapeEOFStatus                               ; set tape filing system status bit 6 (EOF reached)
-    BNE .incrementAndFinish                             ; if (not EOF) then branch
+    BIT .blockFlagOfCurrentlyResidentBlock              ; block flag of currently resident block  $^$ 0xf4ec
+    BMI .setEOF                                         ; if (this is the last block) then branch  $^$ 0xf4ef
+    LDA .lastCharacterOfCurrentlyResidentBlock          ; last character of currently resident block  $^$ 0xf4f1
+    PHA                                                 ; save A on stack  $^$ 0xf4f4
+    JSR .claimSerialSystemForSequentialAccess           ; claim serial system and set OPTions  $^$ 0xf4f5
+    PHP                                                 ; save flags on stack  $^$ 0xf4f8
+    JSR .bgetReadBlockAndHeader                         ; read in a new block  $^$ 0xf4f9
+    PLP                                                 ; get back flags  $^$ 0xf4fc
+    PLA                                                 ; get back A  $^$ 0xf4fd
+    STA .fsTempStorage                                  ; store return value: last byte of current block  $^$ 0xf4fe
+    CLC                                                 ; clear carry flag  $^$ 0xf500
+    BIT .blockFlagOfCurrentlyResidentBlock              ; block flag of currently resident block  $^$ 0xf501
+    BPL .incrementAndFinish                             ; if (not last block) then branch  $^$ 0xf504
+    LDA .tapeInputCurrentBlockSizeLow                   ; get block length  $^$ 0xf506
+    ORA .tapeInputCurrentBlockSizeHigh                  ; OR with high byte  $^$ 0xf509
+    BNE .incrementAndFinish                             ; if (block size not zero) then branch  $^$ 0xf50c
+    JSR .setTapeEOFStatus                               ; set tape filing system status bit 6 (EOF reached)  $^$ 0xf50e
+    BNE .incrementAndFinish                             ; if (not EOF) then branch  $^$ 0xf511
 
 .setEOF
-    JSR .setTapeEOFStatus                               ; set tape filing system status bit 6 (EOF reached)
+    JSR .setTapeEOFStatus                               ; set tape filing system status bit 6 (EOF reached)  $^$ 0xf513
 
 .readFromFSBufferAndContinue
-    DEX                                                 ; X=X-1
-    CLC                                                 ; clear carry flag
-    LDA .tapeOrRS423InputBuffer,X                       ; read byte from cassette buffer
+    DEX                                                 ; X=X-1  $^$ 0xf516
+    CLC                                                 ; clear carry flag  $^$ 0xf517
+    LDA .tapeOrRS423InputBuffer,X                       ; read byte from cassette buffer  $^$ 0xf518
 
 .storeFileStatus
-    STA .fsTempStorage                                  ; store return value temporarily
+    STA .fsTempStorage                                  ; store return value temporarily  $^$ 0xf51b
 .incrementAndFinish
-    INC .bgetBufferOffset                               ; BGET buffer offset for next byte
-    JMP .restoreRegistersAndExit                        ; exit via .restoreRegistersAndExit
+    INC .bgetBufferOffset                               ; BGET buffer offset for next byte  $^$ 0xf51d
+    JMP .restoreRegistersAndExit                        ; exit via .restoreRegistersAndExit  $^$ 0xf520
 
 ; ***************************************************************************************
 .eofErrorMessage
-    BRK                                                 ;
+    BRK                                                 ;  $^$ 0xf523
     !byte $DF                                           ; error number
     !text "EOF",0                                       ; string and zero terminator
 
@@ -18203,24 +18203,24 @@
 ;
 ; ***************************************************************************************
 .osbputEntryPoint
-    STA .tapeLastBputValue                              ; store A in temporary store
-    TXA                                                 ; }
-    PHA                                                 ; } save XY on the stack
-    TYA                                                 ; }
-    PHA                                                 ; }
-    LDA #2                                              ; A=2 (meaning check file is open for writing)
-    JSR .checkFileIsOpen                                ; check conditions necessary for OSBPUT are OK
-    LDX .bputBufferOffset                               ; BPUT buffer offset for next byte
-    LDA .tapeLastBputValue                              ; get back original value of A
-    STA .tapeOrRS423OutputBuffer,X                      ; Write into cassette or RS-423 buffer
-    INX                                                 ; X=X+1
-    BNE +                                               ; if (not zero, buffer is not full) then branch
-    JSR .saveSequentialAccessBlockToTape                ; buffer is full so save block to tape
-    JSR .cancelTapeOperationAndMotor                    ;
+    STA .tapeLastBputValue                              ; store A in temporary store  $^$ 0xf529
+    TXA                                                 ; }  $^$ 0xf52b
+    PHA                                                 ; } save XY on the stack  $^$ 0xf52c
+    TYA                                                 ; }  $^$ 0xf52d
+    PHA                                                 ; }  $^$ 0xf52e
+    LDA #2                                              ; A=2 (meaning check file is open for writing)  $^$ 0xf52f
+    JSR .checkFileIsOpen                                ; check conditions necessary for OSBPUT are OK  $^$ 0xf531
+    LDX .bputBufferOffset                               ; BPUT buffer offset for next byte  $^$ 0xf534
+    LDA .tapeLastBputValue                              ; get back original value of A  $^$ 0xf537
+    STA .tapeOrRS423OutputBuffer,X                      ; Write into cassette or RS-423 buffer  $^$ 0xf539
+    INX                                                 ; X=X+1  $^$ 0xf53c
+    BNE +                                               ; if (not zero, buffer is not full) then branch  $^$ 0xf53d
+    JSR .saveSequentialAccessBlockToTape                ; buffer is full so save block to tape  $^$ 0xf53f
+    JSR .cancelTapeOperationAndMotor                    ;  $^$ 0xf542
 +
-    INC .bputBufferOffset                               ; BPUT buffer offset for next byte
-    LDA .tapeLastBputValue                              ; get back A
-    JMP .returnAWithXYRestoredFromStack                 ; and exit
+    INC .bputBufferOffset                               ; BPUT buffer offset for next byte  $^$ 0xf545
+    LDA .tapeLastBputValue                              ; get back A  $^$ 0xf548
+    JMP .returnAWithXYRestoredFromStack                 ; and exit  $^$ 0xf54a
 
 ; ***************************************************************************************
 ;
@@ -18241,62 +18241,62 @@
 ;
 ; ***************************************************************************************
 .starOptEntryPoint
-    TXA                                                 ; A=X
-    BEQ .restoreDefaultOPTs                             ; if (*OPT 0) then branch (set defaults)
-    CPX #3                                              ;
-    BEQ .tapeSetInterblockGap                           ; if (*OPT 3) then branch (to set interblock gap)
-    CPY #3                                              ;
-    BCS .issueBadCommand                                ; if (Y > 2) then branch ('Bad command' error)
-    DEX                                                 ;
-    BEQ .opt1                                           ; if (*OPT 1) then branch (set filing system message level)
-    DEX                                                 ;
-    BEQ .opt2                                           ; if (*OPT 2) then branch (response level to errors)
+    TXA                                                 ; A=X  $^$ 0xf54d
+    BEQ .restoreDefaultOPTs                             ; if (*OPT 0) then branch (set defaults)  $^$ 0xf54e
+    CPX #3                                              ;  $^$ 0xf550
+    BEQ .tapeSetInterblockGap                           ; if (*OPT 3) then branch (to set interblock gap)  $^$ 0xf552
+    CPY #3                                              ;  $^$ 0xf554
+    BCS .issueBadCommand                                ; if (Y > 2) then branch ('Bad command' error)  $^$ 0xf556
+    DEX                                                 ;  $^$ 0xf558
+    BEQ .opt1                                           ; if (*OPT 1) then branch (set filing system message level)  $^$ 0xf559
+    DEX                                                 ;  $^$ 0xf55b
+    BEQ .opt2                                           ; if (*OPT 2) then branch (response level to errors)  $^$ 0xf55c
 .issueBadCommand
-    JMP .badCommandError                                ; issue 'Bad command' error
+    JMP .badCommandError                                ; issue 'Bad command' error  $^$ 0xf55e
 
 
 ; ***************************************************************************************
 ; Set filing system message level
 .opt1
-    LDA #%00110011                                      ; set lower two bits of each nybble as a MASK
+    LDA #%00110011                                      ; set lower two bits of each nybble as a MASK  $^$ 0xf561
                                                         ; this allows us to set the top two bits of each nybble (message type) and
                                                         ; still keep the existing values for the bottom two bits
                                                         ; of each nybble (ignore/retry/abort)
-    INY                                                 ; }
-    INY                                                 ; } Y=Y+3 (offset into .tapeOptByteTable)
-    INY                                                 ; }
-    BNE .setOptWithMask                                 ; ALWAYS branch
+    INY                                                 ; }  $^$ 0xf563
+    INY                                                 ; } Y=Y+3 (offset into .tapeOptByteTable)  $^$ 0xf564
+    INY                                                 ; }  $^$ 0xf565
+    BNE .setOptWithMask                                 ; ALWAYS branch  $^$ 0xf566
 
 ; ***************************************************************************************
 ; Set error levels
 .opt2
-    LDA #%11001100                                      ; setting top two bits of each nybble as a MASK
+    LDA #%11001100                                      ; setting top two bits of each nybble as a MASK  $^$ 0xf568
                                                         ; allows us to set the bottom two bits of each nybble (ignore/retry/abort) and
                                                         ; still keep the existing values for the top two bits
                                                         ; of each nybble (message type)
 .setOptWithMask
-    INY                                                 ; Y=Y+1 (offset into .tapeOptByteTable)
-    AND .tapeOptionsByte                                ; keep bits set in MASK for keeping current tape options
+    INY                                                 ; Y=Y+1 (offset into .tapeOptByteTable)  $^$ 0xf56a
+    AND .tapeOptionsByte                                ; keep bits set in MASK for keeping current tape options  $^$ 0xf56b
 .setOPTValueY
-    ORA .tapeOptByteTable,Y                             ; OR with table value to set new options
-    STA .tapeOptionsByte                                ; store it
-    RTS                                                 ;
+    ORA .tapeOptByteTable,Y                             ; OR with table value to set new options  $^$ 0xf56d
+    STA .tapeOptionsByte                                ; store it  $^$ 0xf570
+    RTS                                                 ;  $^$ 0xf572
 
 ; ***************************************************************************************
 .tapeSetInterblockGap
-    TYA                                                 ; A=Y (interblock gap)
-    BMI +                                               ; if (A > 127) use default value
-    BNE .useGapDontUseDefaultValue                      ; if (A != 0) then branch (don't use default value)
+    TYA                                                 ; A=Y (interblock gap)  $^$ 0xf573
+    BMI +                                               ; if (A > 127) use default value  $^$ 0xf574
+    BNE .useGapDontUseDefaultValue                      ; if (A != 0) then branch (don't use default value)  $^$ 0xf576
 +
-    LDA #25                                             ; A=25 (2.5 seconds by default)
+    LDA #25                                             ; A=25 (2.5 seconds by default)  $^$ 0xf578
 .useGapDontUseDefaultValue
-    STA .tapeSequentialAccessInterBlockGap              ; sequential block gap
-    RTS                                                 ;
+    STA .tapeSequentialAccessInterBlockGap              ; sequential block gap  $^$ 0xf57a
+    RTS                                                 ;  $^$ 0xf57d
 
 ; ***************************************************************************************
 .restoreDefaultOPTs
-    TAY                                                 ; Y=A=0
-    BEQ .setOPTValueY                                   ; ALWAYS branch
+    TAY                                                 ; Y=A=0  $^$ 0xf57e
+    BEQ .setOPTValueY                                   ; ALWAYS branch  $^$ 0xf57f
 
 
 ; ***************************************************************************************
@@ -18351,45 +18351,45 @@
 ;
 ; ***************************************************************************************
 .updateACIA
-    DEC .fsGotACharacterToReadOrWriteFlag               ; Used when writing to tape,
+    DEC .fsGotACharacterToReadOrWriteFlag               ; Used when writing to tape,  $^$ 0xf588
                                                         ; to decrement the value from zero to
                                                         ; 255 indicating the byte has been
                                                         ; written (which happens below)
 
-    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape; 2=ROMFS
-    BEQ .updateACIATape                                 ; if (tape filing system active) then branch
+    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape; 2=ROMFS  $^$ 0xf58a
+    BEQ .updateACIATape                                 ; if (tape filing system active) then branch  $^$ 0xf58d
 
     ; deal with reading a byte from ROM / PHROM
-    JSR .readByteFromROMFSorPHROM                       ; read ROMFS data ROM or PHROM
-    TAY                                                 ; Y=A
-    CLC                                                 ; clear carry flag
-    BCC .postReadByte                                   ; ALWAYS branch
+    JSR .readByteFromROMFSorPHROM                       ; read ROMFS data ROM or PHROM  $^$ 0xf58f
+    TAY                                                 ; Y=A  $^$ 0xf592
+    CLC                                                 ; clear carry flag  $^$ 0xf593
+    BCC .postReadByte                                   ; ALWAYS branch  $^$ 0xf594
 
 .updateACIATape
     ; deal with reading or writing to tape
-    LDA .acia6850StatusRegister                         ; ACIA status register
-    PHA                                                 ; save A on stack
-    AND #2                                              ; clear all but bit 1
-    BEQ .readByteFromTape                               ; if (transmit data register full,
+    LDA .acia6850StatusRegister                         ; ACIA status register  $^$ 0xf596
+    PHA                                                 ; save A on stack  $^$ 0xf599
+    AND #2                                              ; clear all but bit 1  $^$ 0xf59a
+    BEQ .readByteFromTape                               ; if (transmit data register full,  $^$ 0xf59c
                                                         ; i.e. not ready to send) then branch
                                                         ; (read from tape)
-    LDY .tapeSendingFlag                                ; check we are sending to tape
-    BEQ .readByteFromTape                               ; if (not sending to tape) then
+    LDY .tapeSendingFlag                                ; check we are sending to tape  $^$ 0xf59e
+    BEQ .readByteFromTape                               ; if (not sending to tape) then  $^$ 0xf5a0
                                                         ; branch (read from tape)
 
     ; send a byte to tape
-    PLA                                                 ; get back A
-    LDA .fsCharacterJustReadOrCharToWrite               ; get character to send
-    STA .acia6850DataRegister                           ; ACIA transmit data register
-    RTS                                                 ;
+    PLA                                                 ; get back A  $^$ 0xf5a2
+    LDA .fsCharacterJustReadOrCharToWrite               ; get character to send  $^$ 0xf5a3
+    STA .acia6850DataRegister                           ; ACIA transmit data register  $^$ 0xf5a5
+    RTS                                                 ;  $^$ 0xf5a8
 
     ; read a byte from tape
 .readByteFromTape
-    LDY .acia6850DataRegister                           ; read ACIA receive data register
-    PLA                                                 ; get back A
-    LSR                                                 ; }
-    LSR                                                 ; } shift bit 2 to carry
-    LSR                                                 ; } (data carrier detect)
+    LDY .acia6850DataRegister                           ; read ACIA receive data register  $^$ 0xf5a9
+    PLA                                                 ; get back A  $^$ 0xf5ac
+    LSR                                                 ; }  $^$ 0xf5ad
+    LSR                                                 ; } shift bit 2 to carry  $^$ 0xf5ae
+    LSR                                                 ; } (data carrier detect)  $^$ 0xf5af
     ; fall through
 
 ; ***************************************************************************************
@@ -18419,113 +18419,113 @@
 ;
 ; ***************************************************************************************
 .postReadByte
-    LDX .fsReadProgressState                            ; read progress state
-    BEQ .exit31                                         ; if (.fsReadProgressState = 0) then branch (exit)
-    DEX                                                 ; X=X-1
-    BNE .fsReadProgress2FoundCarrierTone                ; if (.fsReadProgressState > 1) then branch
+    LDX .fsReadProgressState                            ; read progress state  $^$ 0xf5b0
+    BEQ .exit31                                         ; if (.fsReadProgressState = 0) then branch (exit)  $^$ 0xf5b2
+    DEX                                                 ; X=X-1  $^$ 0xf5b4
+    BNE .fsReadProgress2FoundCarrierTone                ; if (.fsReadProgressState > 1) then branch  $^$ 0xf5b5
 
     ; deal with progress state = 1 (looking for carrier tone)
-    BCC .exit31                                         ; if (reading from ROM OR carrier
+    BCC .exit31                                         ; if (reading from ROM OR carrier  $^$ 0xf5b7
                                                         ; tone from cassette not detected)
                                                         ; then branch (exit)
-    LDY #2                                              ; Y=2
-    BNE .storeTapeProgress                              ; ALWAYS branch (store progress and
+    LDY #2                                              ; Y=2  $^$ 0xf5b9
+    BNE .storeTapeProgress                              ; ALWAYS branch (store progress and  $^$ 0xf5bb
                                                         ; return)
 
 ; ***************************************************************************************
 .fsReadProgress2FoundCarrierTone
-    DEX                                                 ; X=X-1
-    BNE .fsReadProgress3FoundSyncByte                   ; if (.fsReadProgressState > 2) then branch
+    DEX                                                 ; X=X-1  $^$ 0xf5bd
+    BNE .fsReadProgress3FoundSyncByte                   ; if (.fsReadProgressState > 2) then branch  $^$ 0xf5be
 
     ; deal with progress state = 2 (found carrier tone, waiting for it to finish)
-    BCS .exit31                                         ; if (carrier tone from cassette
+    BCS .exit31                                         ; if (carrier tone from cassette  $^$ 0xf5c0
                                                         ; still detected) then branch (exit)
 
-    TYA                                                 ; A=Y=byte read
-    JSR .zeroChecksumAndFSFlag                          ; initialise CRC checksum to zero
-    LDY #3                                              ; Y=3
-    CMP #.fsSynchronisationByte                         ; check for the sync byte $2A
-    BEQ .storeTapeProgress                              ; if (found sync byte) then branch
+    TYA                                                 ; A=Y=byte read  $^$ 0xf5c2
+    JSR .zeroChecksumAndFSFlag                          ; initialise CRC checksum to zero  $^$ 0xf5c3
+    LDY #3                                              ; Y=3  $^$ 0xf5c6
+    CMP #.fsSynchronisationByte                         ; check for the sync byte $2A  $^$ 0xf5c8
+    BEQ .storeTapeProgress                              ; if (found sync byte) then branch  $^$ 0xf5ca
                                                         ; (store state and return)
 
     ; sync byte not found, revert back to progress state 1
-    JSR .flipRelayOffAndOnThenSetToReadFromTape         ; control cassette system
-    LDY #1                                              ; Y=1
-    BNE .storeTapeProgress                              ; ALWAYS branch
+    JSR .flipRelayOffAndOnThenSetToReadFromTape         ; control cassette system  $^$ 0xf5cc
+    LDY #1                                              ; Y=1  $^$ 0xf5cf
+    BNE .storeTapeProgress                              ; ALWAYS branch  $^$ 0xf5d1
 
 ; ***************************************************************************************
 .fsReadProgress3FoundSyncByte
-    DEX                                                 ; X=X-1
-    BNE .fsReadProgress4FoundBlockData                  ; if (.fsReadProgressState > 3) then branch
+    DEX                                                 ; X=X-1  $^$ 0xf5d3
+    BNE .fsReadProgress4FoundBlockData                  ; if (.fsReadProgressState > 3) then branch  $^$ 0xf5d4
 
     ; deal with progress state = 3 (found sync byte $2A, reading block header)
-    BCS +                                               ; if (carrier detected) then branch
-    STY .fsCharacterJustReadOrCharToWrite               ; store byte just read
-    BEQ .exit31                                         ; if (zero) then branch (exit)
+    BCS +                                               ; if (carrier detected) then branch  $^$ 0xf5d6
+    STY .fsCharacterJustReadOrCharToWrite               ; store byte just read  $^$ 0xf5d8
+    BEQ .exit31                                         ; if (zero) then branch (exit)  $^$ 0xf5da
 +
-    LDA #$80                                            ; A=$80
-    STA .fsGotACharacterToReadOrWriteFlag               ; note that we have just read a byte
-    BNE .exit31                                         ; ALWAYS branch (exit)
+    LDA #$80                                            ; A=$80  $^$ 0xf5dc
+    STA .fsGotACharacterToReadOrWriteFlag               ; note that we have just read a byte  $^$ 0xf5de
+    BNE .exit31                                         ; ALWAYS branch (exit)  $^$ 0xf5e0
 
 ; ***************************************************************************************
 .fsReadProgress4FoundBlockData
-    DEX                                                 ; X=X-1
-    BNE .fsReadProgress5FinishedReadingBlockData        ; if (.fsReadProgressState > 4) then branch
+    DEX                                                 ; X=X-1  $^$ 0xf5e2
+    BNE .fsReadProgress5FinishedReadingBlockData        ; if (.fsReadProgressState > 4) then branch  $^$ 0xf5e3
 
     ; deal with progress state = 4 (found non-zero length block, reading block data)
 
     ; if carrier detected then reset progress to zero
-    BCS .resetACIAAndResetProgress                      ; if (carry set) then branch (reset and return)
+    BCS .resetACIAAndResetProgress                      ; if (carry set) then branch (reset and return)  $^$ 0xf5e5
 
-    TYA                                                 ; A=Y=byte just read
-    JSR .updateCRC                                      ; perform CRC
-    LDY .fsTempStorage                                  ; get length of block read
-    INC .fsTempStorage                                  ; increment length of block read
-    BIT .fsCharacterJustReadOrCharToWrite               ; check if bit 7 set (meaning
+    TYA                                                 ; A=Y=byte just read  $^$ 0xf5e7
+    JSR .updateCRC                                      ; perform CRC  $^$ 0xf5e8
+    LDY .fsTempStorage                                  ; get length of block read  $^$ 0xf5eb
+    INC .fsTempStorage                                  ; increment length of block read  $^$ 0xf5ed
+    BIT .fsCharacterJustReadOrCharToWrite               ; check if bit 7 set (meaning  $^$ 0xf5ef
                                                         ; searching, not loading)
-    BMI .checkForEndOfBlock                             ; if (searching) then branch
+    BMI .checkForEndOfBlock                             ; if (searching) then branch  $^$ 0xf5f1
 
     ; send byte to second processor if needed, or store byte in regular memory
-    JSR .checkLoadAddressIsForSecondProcessor           ; check load address is ok
+    JSR .checkLoadAddressIsForSecondProcessor           ; check load address is ok  $^$ 0xf5f3
                                                         ; also puts value of A (the byte
                                                         ; just read) into X
-    BEQ +                                               ; if (load address is not for second
+    BEQ +                                               ; if (load address is not for second  $^$ 0xf5f6
                                                         ; processor) then branch
-    STX .tubeULADataRegister3                           ; Write byte to Tube. This triggers
+    STX .tubeULADataRegister3                           ; Write byte to Tube. This triggers  $^$ 0xf5f8
                                                         ; an NMI on the co-processor.
-    BNE .checkForEndOfBlock                             ; ALWAYS branch
+    BNE .checkForEndOfBlock                             ; ALWAYS branch  $^$ 0xf5fb
 
 +
-    TXA                                                 ; A=X restore value
-    STA (.loadAddressLow),Y                             ; store byte at current load address
+    TXA                                                 ; A=X restore value  $^$ 0xf5fd
+    STA (.loadAddressLow),Y                             ; store byte at current load address  $^$ 0xf5fe
 
 .checkForEndOfBlock
-    INY                                                 ; Y=Y+1
-    CPY .fsBlockLengthLow                               ; block length
-    BNE .exit31                                         ; if (not equal) then branch (exit)
+    INY                                                 ; Y=Y+1  $^$ 0xf600
+    CPY .fsBlockLengthLow                               ; block length  $^$ 0xf601
+    BNE .exit31                                         ; if (not equal) then branch (exit)  $^$ 0xf604
 
     ; reached end of block data
-    LDA #1                                              ; A=1
-    STA .fsTempStorage                                  ; loop counter
-    LDY #5                                              ; Y=5
-    BNE .storeTapeProgress                              ; ALWAYS branch (store progress and return)
+    LDA #1                                              ; A=1  $^$ 0xf606
+    STA .fsTempStorage                                  ; loop counter  $^$ 0xf608
+    LDY #5                                              ; Y=5  $^$ 0xf60a
+    BNE .storeTapeProgress                              ; ALWAYS branch (store progress and return)  $^$ 0xf60c
 
 ; ***************************************************************************************
 .fsReadProgress5FinishedReadingBlockData
     ; this first section reads two more bytes (one byte at a time) by using .fsTempStorage
     ; (which was initialised to 1 on the previous progress state above) as a loop counter.
-    TYA                                                 ; A=Y=byte read
-    JSR .updateCRC                                      ; update CRC
-    DEC .fsTempStorage                                  ; decrement loop counter (1,0)
-    BPL .exit31                                         ; exit if loop is not done
+    TYA                                                 ; A=Y=byte read  $^$ 0xf60e
+    JSR .updateCRC                                      ; update CRC  $^$ 0xf60f
+    DEC .fsTempStorage                                  ; decrement loop counter (1,0)  $^$ 0xf612
+    BPL .exit31                                         ; exit if loop is not done  $^$ 0xf614
 
 .resetACIAAndResetProgress
-    JSR .resetACIA                                      ; reset ACIA
-    LDY #0                                              ; Y=0
+    JSR .resetACIA                                      ; reset ACIA  $^$ 0xf616
+    LDY #0                                              ; Y=0  $^$ 0xf619
 .storeTapeProgress
-    STY .fsReadProgressState                            ; progress state
+    STY .fsReadProgressState                            ; progress state  $^$ 0xf61b
 .exit31
-    RTS                                                 ;
+    RTS                                                 ;  $^$ 0xf61d
 
 
 ; ***************************************************************************************
@@ -18540,72 +18540,72 @@
 ;
 ; ***************************************************************************************
 .checkEOFEntryPoint
-    PHA                                                 ; save A on stack
-    TYA                                                 ;
-    PHA                                                 ; save Y on stack
-    TXA                                                 ; }
-    TAY                                                 ; } Y=X=file handle
-    LDA #3                                              ; A=3 (meaning check for file being
+    PHA                                                 ; save A on stack  $^$ 0xf61e
+    TYA                                                 ;  $^$ 0xf61f
+    PHA                                                 ; save Y on stack  $^$ 0xf620
+    TXA                                                 ; }  $^$ 0xf621
+    TAY                                                 ; } Y=X=file handle  $^$ 0xf622
+    LDA #3                                              ; A=3 (meaning check for file being  $^$ 0xf623
                                                         ; open for read or write)
-    JSR .checkFileIsOpen                                ; confirm file is open (otherwise
+    JSR .checkFileIsOpen                                ; confirm file is open (otherwise  $^$ 0xf625
                                                         ; BRK with 'Channel' error)
-    LDA .fsStatusByte                                   ; tape / ROM FS status byte
-    AND #%01000000                                      ; mask for just the EOF flag
-    TAX                                                 ; X=A
-    PLA                                                 ; get back A
-    TAY                                                 ; Y=A
-    PLA                                                 ; get back A
-    RTS                                                 ;
+    LDA .fsStatusByte                                   ; tape / ROM FS status byte  $^$ 0xf628
+    AND #%01000000                                      ; mask for just the EOF flag  $^$ 0xf62a
+    TAX                                                 ; X=A  $^$ 0xf62c
+    PLA                                                 ; get back A  $^$ 0xf62d
+    TAY                                                 ; Y=A  $^$ 0xf62e
+    PLA                                                 ; get back A  $^$ 0xf62f
+    RTS                                                 ;  $^$ 0xf630
 
 ; ***************************************************************************************
 .searchForFile
-    LDA #0                                              ; }
-    STA .currentBlockNumberLow                          ; } reset current block number
-    STA .currentBlockNumberHigh                         ; }
+    LDA #0                                              ; }  $^$ 0xf631
+    STA .currentBlockNumberLow                          ; } reset current block number  $^$ 0xf633
+    STA .currentBlockNumberHigh                         ; }  $^$ 0xf635
 
 .searchForSpecifiedBlock
-    LDA .currentBlockNumberLow                          ; current block number (low byte)
-    PHA                                                 ; save A on stack
-    STA .nextBlockNumberLow                             ; save as next block number (low byte)
-    LDA .currentBlockNumberHigh                         ; current block number (high byte)
-    PHA                                                 ; save A on stack
-    STA .nextBlockNumberHigh                            ; save as next block number (high byte)
+    LDA .currentBlockNumberLow                          ; current block number (low byte)  $^$ 0xf637
+    PHA                                                 ; save A on stack  $^$ 0xf639
+    STA .nextBlockNumberLow                             ; save as next block number (low byte)  $^$ 0xf63a
+    LDA .currentBlockNumberHigh                         ; current block number (high byte)  $^$ 0xf63c
+    PHA                                                 ; save A on stack  $^$ 0xf63e
+    STA .nextBlockNumberHigh                            ; save as next block number (high byte)  $^$ 0xf63f
 
-    JSR .safePrintFollowingMessage                      ; print message following call
+    JSR .safePrintFollowingMessage                      ; print message following call  $^$ 0xf641
     !text "Searching"                                   ;
     !text .charRETURN,0                                 ;
 
-    LDA #$FF                                            ; A=$FF (Meaning 'Must match filename
+    LDA #$FF                                            ; A=$FF (Meaning 'Must match filename  $^$ 0xf64f
                                                         ; and block number')
-    JSR .searchForBlockCheckFilingSystem                ; read data from tape filing system/ROMFS
-    PLA                                                 ; get back A
-    STA .currentBlockNumberHigh                         ; current block number high
-    PLA                                                 ; get back A
-    STA .currentBlockNumberLow                          ; current block number low
-    LDA .nextBlockNumberLow                             ; next block number low
-    ORA .nextBlockNumberHigh                            ; next block number high
-    BNE +                                               ;
-    STA .currentBlockNumberLow                          ; zero current block number low
-    STA .currentBlockNumberHigh                         ; zero current block number high
-    LDA .checksumIsValidFlag                            ; checksum result
-    BNE +                                               ;
-    LDX #(.fsFilename-1) - .vduVariablesStart           ;
-    JSR .copyToSoughtFilename                           ; copy filename from .fsFilename to .filenameToSearchFor
+    JSR .searchForBlockCheckFilingSystem                ; read data from tape filing system/ROMFS  $^$ 0xf651
+    PLA                                                 ; get back A  $^$ 0xf654
+    STA .currentBlockNumberHigh                         ; current block number high  $^$ 0xf655
+    PLA                                                 ; get back A  $^$ 0xf657
+    STA .currentBlockNumberLow                          ; current block number low  $^$ 0xf658
+    LDA .nextBlockNumberLow                             ; next block number low  $^$ 0xf65a
+    ORA .nextBlockNumberHigh                            ; next block number high  $^$ 0xf65c
+    BNE +                                               ;  $^$ 0xf65e
+    STA .currentBlockNumberLow                          ; zero current block number low  $^$ 0xf660
+    STA .currentBlockNumberHigh                         ; zero current block number high  $^$ 0xf662
+    LDA .checksumIsValidFlag                            ; checksum result  $^$ 0xf664
+    BNE +                                               ;  $^$ 0xf666
+    LDX #(.fsFilename-1) - .vduVariablesStart           ;  $^$ 0xf668
+    JSR .copyToSoughtFilename                           ; copy filename from .fsFilename to .filenameToSearchFor  $^$ 0xf66a
 +
-    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape filing system; 2=ROMFS
-    BEQ .setBlockFlagsAndExit                           ; if (tape filing system active) then branch
-    BVS .setBlockFlagsAndExit                           ; if (V set) then branch
+    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape filing system; 2=ROMFS  $^$ 0xf66d
+    BEQ .setBlockFlagsAndExit                           ; if (tape filing system active) then branch  $^$ 0xf670
+    BVS .setBlockFlagsAndExit                           ; if (V set) then branch  $^$ 0xf672
 
 .fileNotFoundError
-    BRK                                                 ;
+    BRK                                                 ;  $^$ 0xf674
     !byte $D6                                           ; Error number
     !text "File not found",0                            ;
 
 ; ***************************************************************************************
 .setBlockFlagsAndExit
-    LDY #$FF                                            ; Y=$FF
-    STY .fsLastBlockReadFlagsCopy                       ; copy of last read block flag
-    RTS                                                 ;
+    LDY #$FF                                            ; Y=$FF  $^$ 0xf685
+    STY .fsLastBlockReadFlagsCopy                       ; copy of last read block flag  $^$ 0xf687
+    RTS                                                 ;  $^$ 0xf68a
 
 
 ; ***************************************************************************************
@@ -18614,7 +18614,7 @@
 ;
 ; ***************************************************************************************
 .closeSpoolOrExecFile
-    LDA #0                                              ; A=0, Z=0
+    LDA #0                                              ; A=0, Z=0  $^$ 0xf68b
     ; fall through...
 
 ; ***************************************************************************************
@@ -18628,34 +18628,34 @@
 ;
 ; ***************************************************************************************
 .closeAndOptionallyOpenANewEXECFile
-    PHP                                                 ; save flags on stack
-    STY .tempWorkspaceE6                                ; .tempWorkspaceE6 = Y
-    LDY .execFileHandle                                 ; file handle of EXEC file to be closed
-    STA .execFileHandle                                 ; record EXEC file closed (A=0)
-    BEQ +                                               ; if (closing an exec file) then branch
-    JSR .OSFIND                                         ; close EXEC file (A=0; Y=file handle)
+    PHP                                                 ; save flags on stack  $^$ 0xf68d
+    STY .tempWorkspaceE6                                ; .tempWorkspaceE6 = Y  $^$ 0xf68e
+    LDY .execFileHandle                                 ; file handle of EXEC file to be closed  $^$ 0xf690
+    STA .execFileHandle                                 ; record EXEC file closed (A=0)  $^$ 0xf693
+    BEQ +                                               ; if (closing an exec file) then branch  $^$ 0xf696
+    JSR .OSFIND                                         ; close EXEC file (A=0; Y=file handle)  $^$ 0xf698
 +
-    LDY .tempWorkspaceE6                                ; Y = original Y
-    PLP                                                 ; get back flags
-    BEQ +                                               ; if (zero flag set on entry) then branch (exit)
-    LDA #$40                                            ; A is value for opening an input file
-    JSR .OSFIND                                         ; open an EXEC file
-    TAY                                                 ; Y=A
-    BEQ .fileNotFoundError                              ; If (Y ===0) then branch ('File not found')
-    STA .execFileHandle                                 ; store EXEC file handle
+    LDY .tempWorkspaceE6                                ; Y = original Y  $^$ 0xf69b
+    PLP                                                 ; get back flags  $^$ 0xf69d
+    BEQ +                                               ; if (zero flag set on entry) then branch (exit)  $^$ 0xf69e
+    LDA #$40                                            ; A is value for opening an input file  $^$ 0xf6a0
+    JSR .OSFIND                                         ; open an EXEC file  $^$ 0xf6a2
+    TAY                                                 ; Y=A  $^$ 0xf6a5
+    BEQ .fileNotFoundError                              ; If (Y ===0) then branch ('File not found')  $^$ 0xf6a6
+    STA .execFileHandle                                 ; store EXEC file handle  $^$ 0xf6a8
 +
-    RTS                                                 ;
+    RTS                                                 ;  $^$ 0xf6ab
 
 ; ***************************************************************************************
 .bgetReadBlockAndHeader
-    LDX #(.bgetFilename-1) - .vduVariablesStart         ;
-    JSR .copyToSoughtFilename                           ; copy filename from .bgetFilename to .filenameToSearchFor
-    JSR .readBlockHeader                                ; read block header. On exit V is clear for last block of ROMFS.
+    LDX #(.bgetFilename-1) - .vduVariablesStart         ;  $^$ 0xf6ac
+    JSR .copyToSoughtFilename                           ; copy filename from .bgetFilename to .filenameToSearchFor  $^$ 0xf6ae
+    JSR .readBlockHeader                                ; read block header. On exit V is clear for last block of ROMFS.  $^$ 0xf6b1
 .checkLockedFlag
-    LDA .fsBlockFlagByte                                ; block flag
-    LSR                                                 ; move bit 0 into carry to check for a 'locked' file
-    BCC .setLoadAddressAndLoadBlock                     ; if (not locked) then branch (skip next instruction)
-    JMP .fileLocked                                     ; 'locked' file routine
+    LDA .fsBlockFlagByte                                ; block flag  $^$ 0xf6b4
+    LSR                                                 ; move bit 0 into carry to check for a 'locked' file  $^$ 0xf6b7
+    BCC .setLoadAddressAndLoadBlock                     ; if (not locked) then branch (skip next instruction)  $^$ 0xf6b8
+    JMP .fileLocked                                     ; 'locked' file routine  $^$ 0xf6ba
 
 ; ***************************************************************************************
 ;
@@ -18663,128 +18663,128 @@
 ;
 ; ***************************************************************************************
 .setLoadAddressAndLoadBlock
-    LDA .nextBGETBlockLow                               ; Expected BGET file block number low
-    STA .currentBlockNumberLow                          ; current block number low
-    LDA .nextBGETBlockHigh                              ; expected BGET file block number high
-    STA .currentBlockNumberHigh                         ; current block number high
-    LDA #<.tapeOrRS423InputBuffer                       ; }
-    STA .loadAddressLow                                 ; }
-    LDA #>.tapeOrRS423InputBuffer                       ; }
-    STA .loadAddressMid1                                ; } set load address to $FFFF0A00
-    LDA #$FF                                            ; } (i.e. .tapeOrRS423InputBuffer)
-    STA .loadAddressMid2                                ; }
-    STA .loadAddressHigh                                ; }
-    JSR .setStateForLoadingBlockDataOrReset             ; set progress to read block data
-    JSR .loadBlock                                      ; load block from tape
-    BNE .searchForBlock                                 ; if (non zero) then branch
-    LDA .tapeOrRS423InputBuffer + $FF                   ; get last character from input buffer
-    STA .lastCharacterOfCurrentlyResidentBlock          ; last character currently resident block
-    JSR .incrementBlockNumbers                          ; inc. current block number
-    STX .nextBGETBlockLow                               ; expected BGET file block number low
-    STY .nextBGETBlockHigh                              ; expected BGET file block number high
+    LDA .nextBGETBlockLow                               ; Expected BGET file block number low  $^$ 0xf6bd
+    STA .currentBlockNumberLow                          ; current block number low  $^$ 0xf6c0
+    LDA .nextBGETBlockHigh                              ; expected BGET file block number high  $^$ 0xf6c2
+    STA .currentBlockNumberHigh                         ; current block number high  $^$ 0xf6c5
+    LDA #<.tapeOrRS423InputBuffer                       ; }  $^$ 0xf6c7
+    STA .loadAddressLow                                 ; }  $^$ 0xf6c9
+    LDA #>.tapeOrRS423InputBuffer                       ; }  $^$ 0xf6cb
+    STA .loadAddressMid1                                ; } set load address to $FFFF0A00  $^$ 0xf6cd
+    LDA #$FF                                            ; } (i.e. .tapeOrRS423InputBuffer)  $^$ 0xf6cf
+    STA .loadAddressMid2                                ; }  $^$ 0xf6d1
+    STA .loadAddressHigh                                ; }  $^$ 0xf6d3
+    JSR .setStateForLoadingBlockDataOrReset             ; set progress to read block data  $^$ 0xf6d5
+    JSR .loadBlock                                      ; load block from tape  $^$ 0xf6d8
+    BNE .searchForBlock                                 ; if (non zero) then branch  $^$ 0xf6db
+    LDA .tapeOrRS423InputBuffer + $FF                   ; get last character from input buffer  $^$ 0xf6dd
+    STA .lastCharacterOfCurrentlyResidentBlock          ; last character currently resident block  $^$ 0xf6e0
+    JSR .incrementBlockNumbers                          ; inc. current block number  $^$ 0xf6e3
+    STX .nextBGETBlockLow                               ; expected BGET file block number low  $^$ 0xf6e6
+    STY .nextBGETBlockHigh                              ; expected BGET file block number high  $^$ 0xf6e9
 
-    LDX #2                                              ; X = loop counter
+    LDX #2                                              ; X = loop counter  $^$ 0xf6ec
 -
-    LDA .fsBlockLengthLow,X                             ; read bytes from block flag/block length
-    STA .tapeInputCurrentBlockSizeLow,X                 ; store into current values of above
-    DEX                                                 ; X=X-1
-    BPL -                                               ; until X=-1 ($FF)
+    LDA .fsBlockLengthLow,X                             ; read bytes from block flag/block length  $^$ 0xf6ee
+    STA .tapeInputCurrentBlockSizeLow,X                 ; store into current values of above  $^$ 0xf6f1
+    DEX                                                 ; X=X-1  $^$ 0xf6f4
+    BPL -                                               ; until X=-1 ($FF)  $^$ 0xf6f5
 
-    BIT .blockFlagOfCurrentlyResidentBlock              ; block flag of currently resident block
-    BPL +                                               ; if (not last block) then branch (don't print newline)
-    JSR .printReturnSafely                              ; print newline if needed
+    BIT .blockFlagOfCurrentlyResidentBlock              ; block flag of currently resident block  $^$ 0xf6f7
+    BPL +                                               ; if (not last block) then branch (don't print newline)  $^$ 0xf6fa
+    JSR .printReturnSafely                              ; print newline if needed  $^$ 0xf6fc
 +
-    JMP .cancelTapeOperationAndMotor                    ;
+    JMP .cancelTapeOperationAndMotor                    ;  $^$ 0xf6ff
 
 ; ***************************************************************************************
 .searchForBlock
-    JSR .searchForSpecifiedBlock                        ; search for a specified block
-    BNE .checkLockedFlag                                ; ALWAYS branch (check for locked condition)
+    JSR .searchForSpecifiedBlock                        ; search for a specified block  $^$ 0xf702
+    BNE .checkLockedFlag                                ; ALWAYS branch (check for locked condition)  $^$ 0xf705
 
 ; ***************************************************************************************
 .checkForROMBlockMarker
-    CMP #.fsSynchronisationByte                         ; check for synchronising byte $2A (at start of first block)
-    BEQ .startOfBlock                                   ; if (found synchronising byte for first block) then branch
-    CMP #.romFSMiddleBlockHeaderByte                    ; check for header byte for a middle block
-    BNE .clearCatalogueStatusBadROM                     ; if (middle block header not found) then branch (error 'Bad ROM')
+    CMP #.fsSynchronisationByte                         ; check for synchronising byte $2A (at start of first block)  $^$ 0xf707
+    BEQ .startOfBlock                                   ; if (found synchronising byte for first block) then branch  $^$ 0xf709
+    CMP #.romFSMiddleBlockHeaderByte                    ; check for header byte for a middle block  $^$ 0xf70b
+    BNE .clearCatalogueStatusBadROM                     ; if (middle block header not found) then branch (error 'Bad ROM')  $^$ 0xf70d
 
-    INC .fsBlockNumberLow                               ; block number
-    BNE +                                               ;
-    INC .fsBlockNumberHigh                              ; block number high
+    INC .fsBlockNumberLow                               ; block number  $^$ 0xf70f
+    BNE +                                               ;  $^$ 0xf712
+    INC .fsBlockNumberHigh                              ; block number high  $^$ 0xf714
 +
-    LDX #$FF                                            ; X=$FF
-    BIT .allBitsSet                                     ; set N and V flags
-    BNE .clearChecksumTapeProgress                      ; ALWAYS branch
+    LDX #$FF                                            ; X=$FF  $^$ 0xf717
+    BIT .allBitsSet                                     ; set N and V flags  $^$ 0xf719
+    BNE .clearChecksumTapeProgress                      ; ALWAYS branch  $^$ 0xf71c
 
 ; ***************************************************************************************
 .clearCatalogueStatusBadROM
-    LDA #%11110111                                      ; }
-    JSR .clearTapeStatusBits                            ; } clear current catalogue status
+    LDA #%11110111                                      ; }  $^$ 0xf71e
+    JSR .clearTapeStatusBits                            ; } clear current catalogue status  $^$ 0xf720
                                                         ; [this could just call
                                                         ;  JSR .clearCatalogueStatus
                                                         ;  instead of the LDA/JSR instructions
                                                         ;  above, for a 2 byte saving]
 
 .badROMError
-    BRK                                                 ; cause error
+    BRK                                                 ; cause error  $^$ 0xf723
     !byte $D7                                           ; error number
     !text "Bad ROM"                                     ; message
     !byte 0                                             ; terminator
 
 ; ***************************************************************************************
 .readTapeBlockHeader
-    LDY #$FF                                            ;
-    JSR .storeFileHandleAndMotorOn                      ; switch Motor on
-    LDA #1                                              ; A=1
-    STA .fsReadProgressState                            ; start the read progress state
-    JSR .flipRelayOffAndOnThenSetToReadFromTape         ; control serial system
+    LDY #$FF                                            ;  $^$ 0xf72d
+    JSR .storeFileHandleAndMotorOn                      ; switch Motor on  $^$ 0xf72f
+    LDA #1                                              ; A=1  $^$ 0xf732
+    STA .fsReadProgressState                            ; start the read progress state  $^$ 0xf734
+    JSR .flipRelayOffAndOnThenSetToReadFromTape         ; control serial system  $^$ 0xf736
 
 -
-    JSR .checkForEscapeDuringCassetteOperation          ; confirm ESC not set and tape filing system not executing
-    LDA #3                                              ; A=3
-    CMP .fsReadProgressState                            ; progress state
-    BNE -                                               ; back until .fsReadProgressState=3
+    JSR .checkForEscapeDuringCassetteOperation          ; confirm ESC not set and tape filing system not executing  $^$ 0xf739
+    LDA #3                                              ; A=3  $^$ 0xf73c
+    CMP .fsReadProgressState                            ; progress state  $^$ 0xf73e
+    BNE -                                               ; back until .fsReadProgressState=3  $^$ 0xf740
 
 .startOfBlock
-    LDY #0                                              ; Y=0
-    JSR .setChecksumBytesToY                            ; zero checksum bytes
+    LDY #0                                              ; Y=0  $^$ 0xf742
+    JSR .setChecksumBytesToY                            ; zero checksum bytes  $^$ 0xf744
 
     ; read filename
 -
-    JSR .readByteFromTapeOrROM                          ; get character from file and do CRC
-    BVC .reachedEndOfHeader                             ; if (V clear) then branch
-    STA .fsFilename,Y                                   ; store
-    BEQ +                                               ; or if A=0 then branch
-    INY                                                 ; Y=Y+1
-    CPY #11                                             ; check Y against 11
-    BNE -                                               ; if (Y != 11) then branch (go back for next character)
-    DEY                                                 ; Y=10
+    JSR .readByteFromTapeOrROM                          ; get character from file and do CRC  $^$ 0xf747
+    BVC .reachedEndOfHeader                             ; if (V clear) then branch  $^$ 0xf74a
+    STA .fsFilename,Y                                   ; store  $^$ 0xf74c
+    BEQ +                                               ; or if A=0 then branch  $^$ 0xf74f
+    INY                                                 ; Y=Y+1  $^$ 0xf751
+    CPY #11                                             ; check Y against 11  $^$ 0xf752
+    BNE -                                               ; if (Y != 11) then branch (go back for next character)  $^$ 0xf754
+    DEY                                                 ; Y=10  $^$ 0xf756
 
 +
     ; read rest of header
-    LDX #12                                             ; X=loop counter (from 12 to 31) to read rest of header
+    LDX #12                                             ; X=loop counter (from 12 to 31) to read rest of header  $^$ 0xf757
 -
-    JSR .readByteFromTapeOrROM                          ; get character from file and do CRC
-    BVC .reachedEndOfHeader                             ; if (V clear) then branch
-    STA .fsFilename,X                                   ; store byte
-    INX                                                 ; X=X+1
-    CPX #$1F                                            ; check X for 31
-    BNE -                                               ; if (X is not 31) then loop back
+    JSR .readByteFromTapeOrROM                          ; get character from file and do CRC  $^$ 0xf759
+    BVC .reachedEndOfHeader                             ; if (V clear) then branch  $^$ 0xf75c
+    STA .fsFilename,X                                   ; store byte  $^$ 0xf75e
+    INX                                                 ; X=X+1  $^$ 0xf761
+    CPX #$1F                                            ; check X for 31  $^$ 0xf762
+    BNE -                                               ; if (X is not 31) then loop back  $^$ 0xf764
 
 .reachedEndOfHeader
-    TYA                                                 ; }
-    TAX                                                 ; } X=Y=length of filename
-    LDA #0                                              ; A=0
-    STA .fsFilename,Y                                   ; store terminator
-    LDA .tapeChecksumLow                                ; }
-    ORA .tapeChecksumHigh                               ; } Check if the CRC value is zero
-    STA .checksumIsValidFlag                            ; Checksum result is zero if valid
+    TYA                                                 ; }  $^$ 0xf766
+    TAX                                                 ; } X=Y=length of filename  $^$ 0xf767
+    LDA #0                                              ; A=0  $^$ 0xf768
+    STA .fsFilename,Y                                   ; store terminator  $^$ 0xf76a
+    LDA .tapeChecksumLow                                ; }  $^$ 0xf76d
+    ORA .tapeChecksumHigh                               ; } Check if the CRC value is zero  $^$ 0xf76f
+    STA .checksumIsValidFlag                            ; Checksum result is zero if valid  $^$ 0xf771
 
 .clearChecksumTapeProgress
-    JSR .zeroChecksumAndFSFlag                          ; reset checksum etc
-    STY .fsReadProgressState                            ; reset progress (Y=0)
-    TXA                                                 ; A=X=length of filename
-    BNE .exit32                                         ; The tape filename is always non-zero
+    JSR .zeroChecksumAndFSFlag                          ; reset checksum etc  $^$ 0xf773
+    STY .fsReadProgressState                            ; reset progress (Y=0)  $^$ 0xf776
+    TXA                                                 ; A=X=length of filename  $^$ 0xf778
+    BNE .exit32                                         ; The tape filename is always non-zero  $^$ 0xf779
                                                         ; in length so:
                                                         ; ALWAYS branch (exit)
                                                         ; [In which case, RTS would be shorter]
@@ -18798,26 +18798,26 @@
 ;
 ; ***************************************************************************************
 .readBlockHeader
-    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape; 2=ROMFS
-    BEQ .readTapeBlockHeader                            ; if (tape filing system active) then branch
+    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape; 2=ROMFS  $^$ 0xf77b
+    BEQ .readTapeBlockHeader                            ; if (tape filing system active) then branch  $^$ 0xf77e
 
     ; Read ROM file header
     ; See NAUG Section 17.5.6, Page 317 for ROM data format
 -
-    JSR .readByteFromROMFSorPHROM                       ; read ROMFS data ROM or PHROM
-    CMP #.romFSFinalBlockHeaderByte                     ; check for ROM file terminator
-    BNE .checkForROMBlockMarker                         ; if (not terminator) then branch
+    JSR .readByteFromROMFSorPHROM                       ; read ROMFS data ROM or PHROM  $^$ 0xf780
+    CMP #.romFSFinalBlockHeaderByte                     ; check for ROM file terminator  $^$ 0xf783
+    BNE .checkForROMBlockMarker                         ; if (not terminator) then branch  $^$ 0xf785
 
     ; ROM file terminator found
-    LDA #%00001000                                      ; A=isolating bit 3 (catalogue status)
-    AND .fsStatusByte                                   ; check catalogue status
-    BEQ +                                               ; if (clear) then branch (skip next instruction)
-    JSR .saveFlagsPrintCR                               ; print CR safely
+    LDA #%00001000                                      ; A=isolating bit 3 (catalogue status)  $^$ 0xf787
+    AND .fsStatusByte                                   ; check catalogue status  $^$ 0xf789
+    BEQ +                                               ; if (clear) then branch (skip next instruction)  $^$ 0xf78b
+    JSR .saveFlagsPrintCR                               ; print CR safely  $^$ 0xf78d
 +
-    JSR .readByteFromROMOrPHROM                         ; get byte from data ROM
-    BCC -                                               ; if (carry clear) then branch (loop back and try again)
-    CLV                                                 ; clear overflow flag
-    RTS                                                 ;
+    JSR .readByteFromROMOrPHROM                         ; get byte from data ROM  $^$ 0xf790
+    BCC -                                               ; if (carry clear) then branch (loop back and try again)  $^$ 0xf793
+    CLV                                                 ; clear overflow flag  $^$ 0xf795
+    RTS                                                 ;  $^$ 0xf796
 
 ; ***************************************************************************************
 ;
@@ -18825,26 +18825,26 @@
 ;
 ; ***************************************************************************************
 .readByteFromTapeOrROM
-    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape; 2=ROMFS
-    BEQ +                                               ; if (tape filing system active) then branch
+    LDA .tapeOrROMSwitch                                ; filing system flag 0=tape; 2=ROMFS  $^$ 0xf797
+    BEQ +                                               ; if (tape filing system active) then branch  $^$ 0xf79a
 
     ; deal with ROMFS read byte
-    TXA                                                 ; }
-    PHA                                                 ; }
-    TYA                                                 ; } save X and Y
-    PHA                                                 ; }
-    JSR .readByteFromROMFSorPHROM                       ; read ROMFS data ROM or PHROM
-    STA .fsCharacterJustReadOrCharToWrite               ; store character just read
-    LDA #$FF                                            ; Top bit set
-    STA .fsGotACharacterToReadOrWriteFlag               ; note that we have just read a byte
+    TXA                                                 ; }  $^$ 0xf79c
+    PHA                                                 ; }  $^$ 0xf79d
+    TYA                                                 ; } save X and Y  $^$ 0xf79e
+    PHA                                                 ; }  $^$ 0xf79f
+    JSR .readByteFromROMFSorPHROM                       ; read ROMFS data ROM or PHROM  $^$ 0xf7a0
+    STA .fsCharacterJustReadOrCharToWrite               ; store character just read  $^$ 0xf7a3
+    LDA #$FF                                            ; Top bit set  $^$ 0xf7a5
+    STA .fsGotACharacterToReadOrWriteFlag               ; note that we have just read a byte  $^$ 0xf7a7
                                                         ; set 'flag' to $FF to avoid waiting for
                                                         ; byte to be read (c.f. from tape)
-    PLA                                                 ; }
-    TAY                                                 ; }
-    PLA                                                 ; } restore X and Y
-    TAX                                                 ; }
+    PLA                                                 ; }  $^$ 0xf7a9
+    TAY                                                 ; }  $^$ 0xf7aa
+    PLA                                                 ; } restore X and Y  $^$ 0xf7ab
+    TAX                                                 ; }  $^$ 0xf7ac
 +
-    JSR .waitForByteToReadOrWrite                       ; check for Escape and loop till bit 7 of FS buffer flag=1
+    JSR .waitForByteToReadOrWrite                       ; check for Escape and loop till bit 7 of FS buffer flag=1  $^$ 0xf7ad
     ; fall through...
 
 ; ***************************************************************************************
@@ -18868,37 +18868,37 @@
 ;
 ; ***************************************************************************************
 .updateCRC
-    PHP                                                 ; save flags on stack
-    PHA                                                 ; save A on stack
-    SEC                                                 ; } Set top bit of CRC bit counter
-    ROR .tapeCRCBitCounter                              ; } This acts as a loop counter
+    PHP                                                 ; save flags on stack  $^$ 0xf7b0
+    PHA                                                 ; save A on stack  $^$ 0xf7b1
+    SEC                                                 ; } Set top bit of CRC bit counter  $^$ 0xf7b2
+    ROR .tapeCRCBitCounter                              ; } This acts as a loop counter  $^$ 0xf7b3
 
-    EOR .tapeChecksumHigh                               ; }
-    STA .tapeChecksumHigh                               ; } H = A EOR H
+    EOR .tapeChecksumHigh                               ; }  $^$ 0xf7b5
+    STA .tapeChecksumHigh                               ; } H = A EOR H  $^$ 0xf7b7
 -
-    LDA .tapeChecksumHigh                               ;
-    ROL                                                 ; Carry = bit 7 (A = A * 2)
-    BCC +                                               ;
-    ROR                                                 ; A = A / 2 = H
+    LDA .tapeChecksumHigh                               ;  $^$ 0xf7b9
+    ROL                                                 ; Carry = bit 7 (A = A * 2)  $^$ 0xf7bb
+    BCC +                                               ;  $^$ 0xf7bc
+    ROR                                                 ; A = A / 2 = H  $^$ 0xf7be
 
-    EOR #$08                                            ; }
-    STA .tapeChecksumHigh                               ; }
-    LDA .tapeChecksumLow                                ; } HL=HL EOR $0810
-    EOR #$10                                            ; }
-    STA .tapeChecksumLow                                ; }
-    SEC                                                 ; set carry flag
+    EOR #$08                                            ; }  $^$ 0xf7bf
+    STA .tapeChecksumHigh                               ; }  $^$ 0xf7c1
+    LDA .tapeChecksumLow                                ; } HL=HL EOR $0810  $^$ 0xf7c3
+    EOR #$10                                            ; }  $^$ 0xf7c5
+    STA .tapeChecksumLow                                ; }  $^$ 0xf7c7
+    SEC                                                 ; set carry flag  $^$ 0xf7c9
 
 +
-    ROL .tapeChecksumLow                                ; }
-    ROL .tapeChecksumHigh                               ; } HL=(HL*2 + Carry) AND &FFFF
+    ROL .tapeChecksumLow                                ; }  $^$ 0xf7ca
+    ROL .tapeChecksumHigh                               ; } HL=(HL*2 + Carry) AND &FFFF  $^$ 0xf7cc
 
-    LSR .tapeCRCBitCounter                              ; shift loop counter right
-    BNE -                                               ; if (eight bits not processed) then branch
+    LSR .tapeCRCBitCounter                              ; shift loop counter right  $^$ 0xf7ce
+    BNE -                                               ; if (eight bits not processed) then branch  $^$ 0xf7d0
 
-    PLA                                                 ; get back A
-    PLP                                                 ; get back flags
+    PLA                                                 ; get back A  $^$ 0xf7d2
+    PLP                                                 ; get back flags  $^$ 0xf7d3
 .exit32
-    RTS                                                 ;
+    RTS                                                 ;  $^$ 0xf7d4
 
 ; ***************************************************************************************
 ;
@@ -18914,7 +18914,7 @@
 ;
 ; ***************************************************************************************
 .setStateForLoadingBlockDataOrReset
-    LDA #0                                              ; A=0
+    LDA #0                                              ; A=0  $^$ 0xf7d5
     ; fall through...
 
 ; ***************************************************************************************
@@ -18931,17 +18931,17 @@
 ;
 ; ***************************************************************************************
 .setCharAThenProgressState4OrReset
-    STA .fsCharacterJustReadOrCharToWrite               ; store character just read
-    LDX #0                                              ; X=0
-    STX .fsTempStorage                                  ;
-    BVC +                                               ;
-    LDA .fsBlockLengthLow                               ; block length
-    ORA .fsBlockLengthHigh                              ; block length high
-    BEQ +                                               ; if (block length is zero) then branch
-    LDX #4                                              ; X=4 (block length not zero)
+    STA .fsCharacterJustReadOrCharToWrite               ; store character just read  $^$ 0xf7d7
+    LDX #0                                              ; X=0  $^$ 0xf7d9
+    STX .fsTempStorage                                  ;  $^$ 0xf7db
+    BVC +                                               ;  $^$ 0xf7dd
+    LDA .fsBlockLengthLow                               ; block length  $^$ 0xf7df
+    ORA .fsBlockLengthHigh                              ; block length high  $^$ 0xf7e2
+    BEQ +                                               ; if (block length is zero) then branch  $^$ 0xf7e5
+    LDX #4                                              ; X=4 (block length not zero)  $^$ 0xf7e7
 +
-    STX .fsReadProgressState                            ; save progress state
-    RTS                                                 ;
+    STX .fsReadProgressState                            ; save progress state  $^$ 0xf7e9
+    RTS                                                 ;  $^$ 0xf7eb
 
 ; ***************************************************************************************
 ;
@@ -18953,39 +18953,39 @@
 ;
 ; ***************************************************************************************
 .saveABlockToTape
-    PHP                                                 ; save flags on stack
-    LDX #3                                              ; X=loop counter
-    LDA #0                                              ; A=value to store
+    PHP                                                 ; save flags on stack  $^$ 0xf7ec
+    LDX #3                                              ; X=loop counter  $^$ 0xf7ed
+    LDA #0                                              ; A=value to store  $^$ 0xf7ef
 -
-    STA .fsSpareByteA,X                                 ; clear the four spare bytes of file system block
-    DEX                                                 ; X=X-1
-    BPL -                                               ;
+    STA .fsSpareByteA,X                                 ; clear the four spare bytes of file system block  $^$ 0xf7f1
+    DEX                                                 ; X=X-1  $^$ 0xf7f4
+    BPL -                                               ;  $^$ 0xf7f5
 
-    LDA .fsBlockNumberLow                               ; block number
-    ORA .fsBlockNumberHigh                              ; block number high
-    BNE .waitForInterblockGap                           ; if (block number is not zero) then branch
-    JSR .waitFiveSeconds                                ; generate a 5 second delay
-    BEQ +                                               ; ALWAYS branch
+    LDA .fsBlockNumberLow                               ; block number  $^$ 0xf7f7
+    ORA .fsBlockNumberHigh                              ; block number high  $^$ 0xf7fa
+    BNE .waitForInterblockGap                           ; if (block number is not zero) then branch  $^$ 0xf7fd
+    JSR .waitFiveSeconds                                ; generate a 5 second delay  $^$ 0xf7ff
+    BEQ +                                               ; ALWAYS branch  $^$ 0xf802
 
 .waitForInterblockGap
-    JSR .generateInterBlockGapDelay                     ; generate delay set by interblock gap
+    JSR .generateInterBlockGapDelay                     ; generate delay set by interblock gap  $^$ 0xf804
 
     ; initialise and save value $2A to tape
 +
-    LDA #.fsSynchronisationByte                         ; A=synchronisation byte (byte to save to tape)
-    STA .fsCharacterJustReadOrCharToWrite               ; store character to write
-    JSR .zeroChecksumAndFSFlag                          ; initialise checksum and file system buffer flag
-    JSR .activateRequestToSend                          ; request send to tape
-    JSR .waitForByteToReadOrWrite                       ; wait for byte to be saved to tape
-    DEY                                                 ; Y=Y-1
+    LDA #.fsSynchronisationByte                         ; A=synchronisation byte (byte to save to tape)  $^$ 0xf807
+    STA .fsCharacterJustReadOrCharToWrite               ; store character to write  $^$ 0xf809
+    JSR .zeroChecksumAndFSFlag                          ; initialise checksum and file system buffer flag  $^$ 0xf80b
+    JSR .activateRequestToSend                          ; request send to tape  $^$ 0xf80e
+    JSR .waitForByteToReadOrWrite                       ; wait for byte to be saved to tape  $^$ 0xf811
+    DEY                                                 ; Y=Y-1  $^$ 0xf814
 
     ; save filename
 -
-    INY                                                 ; Y=Y+1
-    LDA .filenameToSearchFor,Y                          ; move sought filename
-    STA .fsFilename,Y                                   ; into filename block
-    JSR .saveByteAToTapeAndUpdateCRC                    ; transfer byte to tape filing system and do CRC
-    BNE -                                               ; if (filename not yet complete) then branch (do it again)
+    INY                                                 ; Y=Y+1  $^$ 0xf815
+    LDA .filenameToSearchFor,Y                          ; move sought filename  $^$ 0xf816
+    STA .fsFilename,Y                                   ; into filename block  $^$ 0xf819
+    JSR .saveByteAToTapeAndUpdateCRC                    ; transfer byte to tape filing system and do CRC  $^$ 0xf81c
+    BNE -                                               ; if (filename not yet complete) then branch (do it again)  $^$ 0xf81f
 
     ; save rest of header:
     ;   load address      (4 bytes)
@@ -18994,65 +18994,65 @@
     ;   block length      (2 bytes)
     ;   block flag byte   (1 byte)
     ;   spare bytes       (4 bytes)
-    LDX #.fsLoadAddressLow - .fsFilename                ; X=offset to load address
+    LDX #.fsLoadAddressLow - .fsFilename                ; X=offset to load address  $^$ 0xf821
 -
-    LDA .fsFilename,X                                   ; get filename byte
-    JSR .saveByteAToTapeAndUpdateCRC                    ; transfer byte to tape filing system and do CRC
-    INX                                                 ; X=X+1
-    CPX #.fsChecksumLow - .fsFilename                   ; until X reaches the end of the header block (just before the start of the two checksum bytes)
-    BNE -                                               ;
+    LDA .fsFilename,X                                   ; get filename byte  $^$ 0xf823
+    JSR .saveByteAToTapeAndUpdateCRC                    ; transfer byte to tape filing system and do CRC  $^$ 0xf826
+    INX                                                 ; X=X+1  $^$ 0xf829
+    CPX #.fsChecksumLow - .fsFilename                   ; until X reaches the end of the header block (just before the start of the two checksum bytes)  $^$ 0xf82a
+    BNE -                                               ;  $^$ 0xf82c
 
-    JSR .saveChecksumToTape                             ; save checksum to TAPE reset buffer flag
-    LDA .fsBlockLengthLow                               ; block length
-    ORA .fsBlockLengthHigh                              ; block length high
-    BEQ .saveFinalTwoBytes                              ; if (block length is zero) then branch
+    JSR .saveChecksumToTape                             ; save checksum to TAPE reset buffer flag  $^$ 0xf82e
+    LDA .fsBlockLengthLow                               ; block length  $^$ 0xf831
+    ORA .fsBlockLengthHigh                              ; block length high  $^$ 0xf834
+    BEQ .saveFinalTwoBytes                              ; if (block length is zero) then branch  $^$ 0xf837
 
-    LDY #0                                              ; Y=0
-    JSR .setChecksumBytesToY                            ; zero checksum bytes
+    LDY #0                                              ; Y=0  $^$ 0xf839
+    JSR .setChecksumBytesToY                            ; zero checksum bytes  $^$ 0xf83b
 
 -
-    LDA (.tapeSaveStartAddressLow),Y                    ; get a data byte to save
-    JSR .checkLoadAddressIsForSecondProcessor           ; check if load address is from second processor
-    BEQ +                                               ; if (not from second processor) then branch
-    LDX .tubeULADataRegister3                           ; read byte from second processor
+    LDA (.tapeSaveStartAddressLow),Y                    ; get a data byte to save  $^$ 0xf83e
+    JSR .checkLoadAddressIsForSecondProcessor           ; check if load address is from second processor  $^$ 0xf840
+    BEQ +                                               ; if (not from second processor) then branch  $^$ 0xf843
+    LDX .tubeULADataRegister3                           ; read byte from second processor  $^$ 0xf845
 +
-    TXA                                                 ; A=X
-    JSR .saveByteAToTapeAndUpdateCRC                    ; transfer byte to tape filing system and do CRC
-    INY                                                 ; Y=Y+1
-    CPY .fsBlockLengthLow                               ; check block length
-    BNE -                                               ; if (block not done yet) then branch (loop back)
+    TXA                                                 ; A=X  $^$ 0xf848
+    JSR .saveByteAToTapeAndUpdateCRC                    ; transfer byte to tape filing system and do CRC  $^$ 0xf849
+    INY                                                 ; Y=Y+1  $^$ 0xf84c
+    CPY .fsBlockLengthLow                               ; check block length  $^$ 0xf84d
+    BNE -                                               ; if (block not done yet) then branch (loop back)  $^$ 0xf850
 
-    JSR .saveChecksumToTape                             ; save checksum to TAPE
+    JSR .saveChecksumToTape                             ; save checksum to TAPE  $^$ 0xf852
 
 .saveFinalTwoBytes
-    JSR .waitForByteToReadOrWrite                       ; save byte
-    JSR .waitForByteToReadOrWrite                       ; save byte
-    JSR .resetACIA                                      ; reset ACIA
+    JSR .waitForByteToReadOrWrite                       ; save byte  $^$ 0xf855
+    JSR .waitForByteToReadOrWrite                       ; save byte  $^$ 0xf858
+    JSR .resetACIA                                      ; reset ACIA  $^$ 0xf85b
 
-    LDA #1                                              ; A=1
-    JSR .generateDelay                                  ; generate 0.1 second delay
-    PLP                                                 ; get back flags
-    JSR .updateBlockFlagAndDisplayProgress              ; update block flag, PRINT filename (and address if reqd)
-    BIT .fsBlockFlagByte                                ; block flag
-    BPL +                                               ; if (this is NOT last block) then branch
-    PHP                                                 ; save flags on stack
-    JSR .waitFiveSeconds                                ; generate a 5 second delay
-    JSR .beepCancelAndPrintReturn                       ; sound bell and cancel
-    PLP                                                 ; get back flags
+    LDA #1                                              ; A=1  $^$ 0xf85e
+    JSR .generateDelay                                  ; generate 0.1 second delay  $^$ 0xf860
+    PLP                                                 ; get back flags  $^$ 0xf863
+    JSR .updateBlockFlagAndDisplayProgress              ; update block flag, PRINT filename (and address if reqd)  $^$ 0xf864
+    BIT .fsBlockFlagByte                                ; block flag  $^$ 0xf867
+    BPL +                                               ; if (this is NOT last block) then branch  $^$ 0xf86a
+    PHP                                                 ; save flags on stack  $^$ 0xf86c
+    JSR .waitFiveSeconds                                ; generate a 5 second delay  $^$ 0xf86d
+    JSR .beepCancelAndPrintReturn                       ; sound bell and cancel  $^$ 0xf870
+    PLP                                                 ; get back flags  $^$ 0xf873
 +
-    RTS                                                 ;
+    RTS                                                 ;  $^$ 0xf874
 
 ; ***************************************************************************************
 .saveByteAToTapeAndUpdateCRC
-    JSR .saveByteAToTape                                ; save byte
-    JMP .updateCRC                                      ; update CRC
+    JSR .saveByteAToTape                                ; save byte  $^$ 0xf875
+    JMP .updateCRC                                      ; update CRC  $^$ 0xf878
 
 ; ***************************************************************************************
 .saveChecksumToTape
-    LDA .tapeChecksumHigh                               ;
-    JSR .saveByteAToTape                                ; save byte to buffer, transfer to
+    LDA .tapeChecksumHigh                               ;  $^$ 0xf87b
+    JSR .saveByteAToTape                                ; save byte to buffer, transfer to  $^$ 0xf87d
                                                         ; tape filing system and reset flag
-    LDA .tapeChecksumLow                                ;
+    LDA .tapeChecksumLow                                ;  $^$ 0xf880
     ; fall through...
 
 ; ***************************************************************************************
@@ -19066,25 +19066,25 @@
 ;
 ; ***************************************************************************************
 .saveByteAToTape
-    STA .fsCharacterJustReadOrCharToWrite               ; store character to write
+    STA .fsCharacterJustReadOrCharToWrite               ; store character to write  $^$ 0xf882
 
 .waitForByteToReadOrWrite
-    JSR .checkForEscapeDuringCassetteOperation          ; confirm ESC not set and tape filing
+    JSR .checkForEscapeDuringCassetteOperation          ; confirm ESC not set and tape filing  $^$ 0xf884
                                                         ; system not executing
-    BIT .fsGotACharacterToReadOrWriteFlag               ; check if we have read / written a byte
-    BPL .waitForByteToReadOrWrite                       ; loop back until we have read / written a byte
+    BIT .fsGotACharacterToReadOrWriteFlag               ; check if we have read / written a byte  $^$ 0xf887
+    BPL .waitForByteToReadOrWrite                       ; loop back until we have read / written a byte  $^$ 0xf889
 
     ; byte is now read / written
-    LDA #0                                              ; A=0
-    STA .fsGotACharacterToReadOrWriteFlag               ; clear flag, we no longer have a byte
-    LDA .fsCharacterJustReadOrCharToWrite               ; get character just read
-    RTS                                                 ;
+    LDA #0                                              ; A=0  $^$ 0xf88b
+    STA .fsGotACharacterToReadOrWriteFlag               ; clear flag, we no longer have a byte  $^$ 0xf88d
+    LDA .fsCharacterJustReadOrCharToWrite               ; get character just read  $^$ 0xf88f
+    RTS                                                 ;  $^$ 0xf891
 
 ; ***************************************************************************************
 .waitFiveSeconds
-    LDA #50                                             ; Set A for 50 tenths of a second
+    LDA #50                                             ; Set A for 50 tenths of a second  $^$ 0xf892
                                                         ; delay
-    BNE .generateDelay                                  ; ALWAYS branch. generate delay
+    BNE .generateDelay                                  ; ALWAYS branch. generate delay  $^$ 0xf894
                                                         ; 100ms * A (= 5 seconds)
 
 ; ***************************************************************************************
@@ -19093,7 +19093,7 @@
 ;
 ; ***************************************************************************************
 .generateInterBlockGapDelay
-    LDA .tapeInterBlockGap                              ; get current interblock flag
+    LDA .tapeInterBlockGap                              ; get current interblock flag  $^$ 0xf896
     ; fall through...
 
 ; ***************************************************************************************
@@ -19105,17 +19105,17 @@
 ;
 ; ***************************************************************************************
 .generateDelay
-    LDX #5                                              ; X=loop counter
+    LDX #5                                              ; X=loop counter  $^$ 0xf898
 
 .delayLoop
-    STA .verticalSyncCounter                            ; set vsync counter
+    STA .verticalSyncCounter                            ; set vsync counter  $^$ 0xf89a
 -
-    JSR .checkForEscapeDuringCassetteOperation          ; check for ESCAPE
-    BIT .verticalSyncCounter                            ; check vsync counter (decremented 50 times a second)
-    BPL -                                               ; if (not negative) then branch back
-    DEX                                                 ; X--
-    BNE .delayLoop                                      ;
-    RTS                                                 ;
+    JSR .checkForEscapeDuringCassetteOperation          ; check for ESCAPE  $^$ 0xf89d
+    BIT .verticalSyncCounter                            ; check vsync counter (decremented 50 times a second)  $^$ 0xf8a0
+    BPL -                                               ; if (not negative) then branch back  $^$ 0xf8a3
+    DEX                                                 ; X--  $^$ 0xf8a5
+    BNE .delayLoop                                      ;  $^$ 0xf8a6
+    RTS                                                 ;  $^$ 0xf8a8
 
 ; ***************************************************************************************
 ; ***************************************************************************************
@@ -19127,8 +19127,8 @@
 
 ; ***************************************************************************************
 .generateScreenReports
-    LDA .fsBlockNumberLow                               ; block number low  $^$ 0xf88f
-    ORA .fsBlockNumberHigh                              ; block number high  $^$ 0xf899
+    LDA .fsBlockNumberLow                               ; block number low  $^$ 0xf8a9
+    ORA .fsBlockNumberHigh                              ; block number high  $^$ 0xf8ac
     BEQ .newlineAndContinue                             ; if (block number is zero) then branch (print newline and continue)  $^$ 0xf8af
     BIT .fsLastBlockReadFlagsCopy                       ; copy of last read block flags  $^$ 0xf8b1
     BPL .updateBlockFlagAndDisplayProgress              ; update block flag, PRINT filename (and address if required)  $^$ 0xf8b4
@@ -19644,10 +19644,10 @@
 
 ; ***************************************************************************************
 .beepAndCancelTapeOperation
-    JSR .shouldPrintMessage                             ; check if free to print message  $^$ 0xf9a8
-    BEQ .cancelTapeOperationAndMotor                    ;  $^$ 0xf9b5
-    LDA #.charBELL                                      ; beep  $^$ 0xf9c8
-    JSR .OSWRCH                                         ;  $^$ 0xf9cc
+    JSR .shouldPrintMessage                             ; check if free to print message  $^$ 0xfae8
+    BEQ .cancelTapeOperationAndMotor                    ;  $^$ 0xfaeb
+    LDA #.charBELL                                      ; beep  $^$ 0xfaed
+    JSR .OSWRCH                                         ;  $^$ 0xfaef
     ; fall through...
 
 ; ***************************************************************************************
@@ -19656,12 +19656,12 @@
 ;       switch off the cassette motor
 ;       reset ACIA
 .cancelTapeOperationAndMotor
-    LDA #$80                                            ;  $^$ 0xf9d4
-    JSR .secondProcessorTransfer                        ; relinquish the Tube (NAUG Section 18.8, Page 339)  $^$ 0xf9fa
-    LDX #0                                              ;  $^$ 0xfa0f
-    JSR .controlMotor                                   ; switch off motor  $^$ 0xfa31
+    LDA #$80                                            ;  $^$ 0xfaf2
+    JSR .secondProcessorTransfer                        ; relinquish the Tube (NAUG Section 18.8, Page 339)  $^$ 0xfaf4
+    LDX #0                                              ;  $^$ 0xfaf7
+    JSR .controlMotor                                   ; switch off motor  $^$ 0xfaf9
 .cancelTapeOperation
-    PHP                                                 ; save flags on stack  $^$ 0xfa51
+    PHP                                                 ; save flags on stack  $^$ 0xfafc
     SEI                                                 ; prevent IRQ interrupts  $^$ 0xfafd
     LDA .serialULARegisterCopy                          ; get serial ULA control register setting  $^$ 0xfafe
     STA .serialULAControlRegister                       ; write to serial ULA control register setting  $^$ 0xfb01
@@ -20326,33 +20326,33 @@
 ;   - Store the address '$FF00+3*N' in OS vector at '$0200+2*N'
 ;
 .extendedVectorTable
-    JSR .extendedVectorEntryPoint                       ; E_USERV  $^$ 0xfd61
-    JSR .extendedVectorEntryPoint                       ; E_BRKV  $^$ 0xfd6c
-    JSR .extendedVectorEntryPoint                       ; E_IRQ1V  $^$ 0xfd7b
-    JSR .extendedVectorEntryPoint                       ; E_IRQ2V  $^$ 0xfd8b
-    JSR .extendedVectorEntryPoint                       ; E_CLIV  $^$ 0xfd9a
-    JSR .extendedVectorEntryPoint                       ; E_BYTEV  $^$ 0xfda9
-    JSR .extendedVectorEntryPoint                       ; E_WORDV  $^$ 0xfdbd
-    JSR .extendedVectorEntryPoint                       ; E_WRCHV  $^$ 0xfdcf
-    JSR .extendedVectorEntryPoint                       ; E_RDCHV  $^$ 0xfddd
-    JSR .extendedVectorEntryPoint                       ; E_FILEV  $^$ 0xfde9
-    JSR .extendedVectorEntryPoint                       ; E_ARGSV  $^$ 0xfdf6
-    JSR .extendedVectorEntryPoint                       ; E_BGETV  $^$ 0xfe01
-    JSR .extendedVectorEntryPoint                       ; E_BPUTV  $^$ 0xfe0d
-    JSR .extendedVectorEntryPoint                       ; E_GBPBV  $^$ 0xfe20
-    JSR .extendedVectorEntryPoint                       ; E_FINDV  $^$ 0xfe31
-    JSR .extendedVectorEntryPoint                       ; E_FSCV  $^$ 0xfe3f
-    JSR .extendedVectorEntryPoint                       ; E_EVENTV  $^$ 0xfe4b
-    JSR .extendedVectorEntryPoint                       ; E_UPTV  $^$ 0xfe59
-    JSR .extendedVectorEntryPoint                       ; E_NETV  $^$ 0xfe64
-    JSR .extendedVectorEntryPoint                       ; E_VDUV  $^$ 0xfe7a
-    JSR .extendedVectorEntryPoint                       ; E_KEYV  $^$ 0xfe85
-    JSR .extendedVectorEntryPoint                       ; E_INSV  $^$ 0xfe96
-    JSR .extendedVectorEntryPoint                       ; E_REMV  $^$ 0xfea2
-    JSR .extendedVectorEntryPoint                       ; E_CNPV  $^$ 0xfeb6
-    JSR .extendedVectorEntryPoint                       ; E_IND1V  $^$ 0xfec0
-    JSR .extendedVectorEntryPoint                       ; E_IND2V  $^$ 0xfecf
-    JSR .extendedVectorEntryPoint                       ; E_IND3V  $^$ 0xfedd
+    JSR .extendedVectorEntryPoint                       ; E_USERV  $^$ 0xff00
+    JSR .extendedVectorEntryPoint                       ; E_BRKV  $^$ 0xff03
+    JSR .extendedVectorEntryPoint                       ; E_IRQ1V  $^$ 0xff06
+    JSR .extendedVectorEntryPoint                       ; E_IRQ2V  $^$ 0xff09
+    JSR .extendedVectorEntryPoint                       ; E_CLIV  $^$ 0xff0c
+    JSR .extendedVectorEntryPoint                       ; E_BYTEV  $^$ 0xff0f
+    JSR .extendedVectorEntryPoint                       ; E_WORDV  $^$ 0xff12
+    JSR .extendedVectorEntryPoint                       ; E_WRCHV  $^$ 0xff15
+    JSR .extendedVectorEntryPoint                       ; E_RDCHV  $^$ 0xff18
+    JSR .extendedVectorEntryPoint                       ; E_FILEV  $^$ 0xff1b
+    JSR .extendedVectorEntryPoint                       ; E_ARGSV  $^$ 0xff1e
+    JSR .extendedVectorEntryPoint                       ; E_BGETV  $^$ 0xff21
+    JSR .extendedVectorEntryPoint                       ; E_BPUTV  $^$ 0xff24
+    JSR .extendedVectorEntryPoint                       ; E_GBPBV  $^$ 0xff27
+    JSR .extendedVectorEntryPoint                       ; E_FINDV  $^$ 0xff2a
+    JSR .extendedVectorEntryPoint                       ; E_FSCV  $^$ 0xff2d
+    JSR .extendedVectorEntryPoint                       ; E_EVENTV  $^$ 0xff30
+    JSR .extendedVectorEntryPoint                       ; E_UPTV  $^$ 0xff33
+    JSR .extendedVectorEntryPoint                       ; E_NETV  $^$ 0xff36
+    JSR .extendedVectorEntryPoint                       ; E_VDUV  $^$ 0xff39
+    JSR .extendedVectorEntryPoint                       ; E_KEYV  $^$ 0xff3c
+    JSR .extendedVectorEntryPoint                       ; E_INSV  $^$ 0xff3f
+    JSR .extendedVectorEntryPoint                       ; E_REMV  $^$ 0xff42
+    JSR .extendedVectorEntryPoint                       ; E_CNPV  $^$ 0xff45
+    JSR .extendedVectorEntryPoint                       ; E_IND1V  $^$ 0xff48
+    JSR .extendedVectorEntryPoint                       ; E_IND2V  $^$ 0xff4b
+    JSR .extendedVectorEntryPoint                       ; E_IND3V  $^$ 0xff4e
 
 ; ***************************************************************************************
 .extendedVectorEntryPoint
