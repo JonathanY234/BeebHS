@@ -1,7 +1,7 @@
 module FunctionIntercepts where
 
 import MemoryRegisters (Memory, CPURegs(pc, accumulator, statusReg, x, y), readMemory, fileTable, FileMode(Input), OpenFile(readWritePosition))
-import DiskFileHandling (getFileData, fileNameToFileEntry, getExecAddr, loadFile, changeExecAddr, readSlot, addOpenFile, FileEntry(fileIndex), getFileEntryByFileIndex, getFileByte)
+import DiskFileHandling (getFileData, fileNameToFileEntry, getExecAddr, loadFile, changeExecAddr, readSlot, addOpenFile, FileEntry(fileIndex, len), getFileEntryByFileIndex, getFileByte, incrementOpenFilePointer, writeSlot)
 import CPUInstructions (rts, srWriteCarry)
 
 import Data.IORef (readIORef, writeIORef)
@@ -12,11 +12,10 @@ checkForIntercept :: Memory -> CPURegs -> IO Bool
 checkForIntercept mem regs = do
     pcVal <- readIORef (pc regs)
     case pcVal of
-        --0xE23E -> starSaveload mem regs >> return True
-        --0xF68D -> closeSpoolOrExecFile mem regs >> return False
+        --0xE23E -> starSaveload mem regs >> return True -- not needed
         0xFFDD -> osFile mem regs >> return True
         0xFFCE -> osFind mem regs >> return True
-        0xFFD7 -> osBget mem regs >> return False
+        0xFFD7 -> osBget mem regs >> return True
         0xE031 -> passToCurrentFilingSystem mem regs >> return True
         _      -> return False
 
@@ -42,7 +41,7 @@ osFile mem regs = do
 
             -- Get load address from param block
             loadAddrBytes <- mapM (readMemory mem) [paramBlock + 2, paramBlock + 3]
-            let loadAddr = bytesToWord16 loadAddrBytes 
+            let loadAddr = bytesToWord16 loadAddrBytes
 
             loadIndicator <- readMemory mem (paramBlock + 6)
 
@@ -51,7 +50,7 @@ osFile mem regs = do
             -- A, P are destroyed; X,Y unchanged
             --writeIORef (accumulator regs) 0x00  -- or leave undefined
             rtsC mem regs
-            
+
 
         n -> putStrLn $ "Unknown A val: " ++ show n
 
@@ -66,7 +65,8 @@ getFileNameFromParamBlock mem paramBlock = do
     filenameAddrL <- readMemory mem paramBlock
     filenameAddrH <- readMemory mem (paramBlock + 1)
     let filenameAddr = (fromIntegral filenameAddrH `shiftL` 8) + fromIntegral filenameAddrL
-    readStringFromMemory mem filenameAddr
+    str <- readStringFromMemory mem filenameAddr
+    return $ pad7 str
 bytesToWord16 :: [Word8] -> Word16
 bytesToWord16 [b0,b1] = fromIntegral b0 + (fromIntegral b1 `shiftL` 8)
 bytesToWord16 _ = error "bytesToWord16: expected 2 bytes"
@@ -91,31 +91,28 @@ osBget :: Memory -> CPURegs -> IO ()
 osBget mem regs = do
     putStrLn "hello from OSBget"
     channelNumber <- readIORef (y regs)
+
     mfile <- readSlot channelNumber (fileTable mem)
     case mfile of
         Just openFile -> do
             -- could do file mode check here as well
 
             -- then do check to see if there is actually a valid file here
-
             let fileEntry = getFileEntryByFileIndex openFile
-                byteValue = getFileByte fileEntry (readWritePosition openFile)
-            writeIORef (accumulator regs) byteValue
-            srWriteCarry (statusReg regs) False
+                
+            if readWritePosition openFile < len fileEntry then do
 
-            -- NEED TO INCREMENT THE POINTERRRRRR
+                let byteValue = getFileByte fileEntry (readWritePosition openFile)
+                writeIORef (accumulator regs) byteValue
+                srWriteCarry (statusReg regs) False
+                incrementOpenFilePointer mem openFile
+            else do
 
-            -- need to read a byte at readWritePosition and return that via Accumulator
-            -- or an error code of 0xFE
-            -- and set C=0 to indicate valid character
-            -- then rtsC as usual
-        Nothing -> writeIORef (accumulator regs) 0xFE --error code
+                writeIORef (accumulator regs) 0xFE --EOF
+                srWriteCarry (statusReg regs) True
+
+        Nothing -> writeIORef (accumulator regs) 0 --this should not happen. Not sure if this is correct responce
     rtsC mem regs
-
-        -- where
-        --     incrementOpenFilePointer :: Memory -> OpenFile -> IO ()
-        --     incrementOpenFilePointer mem openFile = do
-        --         writeSlot (handle openFile) openFile {} fileTable
 
 
 -- DFS function OSFIND
@@ -123,9 +120,13 @@ osFind :: Memory -> CPURegs -> IO ()
 osFind mem regs = do
     putStr "OSFind "
     accVal <- readIORef (accumulator regs)
-    putStrLn $ "Acc val is: " ++ show accVal
     case accVal of
-        0 -> putStrLn "0, close a file or close all files, Not implemented"
+        0 -> do
+            putStrLn "0, close a file or close all files, Only 'close a file' part implemented"
+            channelNumber <- readIORef (y regs)
+
+            writeSlot channelNumber Nothing (fileTable mem)
+
         0x40 -> do
             putStrLn "0x40, open a file (input)"
             let usingFileHandle = 1
@@ -143,17 +144,17 @@ osFind mem regs = do
                         Just fileEntry -> do
                             addOpenFile (fileTable mem) usingFileHandle fileName Input (fileIndex fileEntry)
                             writeIORef (accumulator regs) usingFileHandle
-                            rtsC mem regs
                         Nothing        -> do
                             putStrLn $ "fileName not found ahhhhhhh: " ++ fileName
                             writeIORef (accumulator regs) 0
-                            rtsC mem regs
+
 
 
         0x80 -> putStrLn "0x80, open a file (output), Not implemented"
         0xC0 -> putStrLn "0xC0, open a file (input/output), Not implemented"
-        
+
         _ -> putStrLn "Unexpected Acc Val"
+    rtsC mem regs
 
 -- implement DFS code for passToCurrentFilingSystem call. Use .fscEntryPoint as refrence
 passToCurrentFilingSystem :: Memory -> CPURegs -> IO ()
@@ -164,7 +165,7 @@ passToCurrentFilingSystem mem regs = do
         0 -> putStrLn "0, *OPT, not implemented yet" >> rtsC mem regs
         1 -> putStrLn "1, EOF check, not implemented yet" >> rtsC mem regs
         2 -> do
-            putStrLn "2, */ command, Working on it"
+            putStrLn "2, */ command"
 
             command <- getFilenameFromXY mem regs
             print command
@@ -176,7 +177,7 @@ passToCurrentFilingSystem mem regs = do
                     -- potencially in future add 0xFFFFFFFF check
                     loadFile mem fileEntry bytes
                     writeIORef (pc regs) (getExecAddr fileEntry)
-                    return ()
+                    --return ()
                 Nothing        -> putStrLn $ "fileName not found ahhhhhhh: " ++ command
         3 -> putStrLn "3, unrecognised, not implemented yet" >> rtsC mem regs
         4 -> do
@@ -195,7 +196,7 @@ passToCurrentFilingSystem mem regs = do
                 Nothing        -> putStrLn $ "fileName not found ahhhhhhh: " ++ command
 
         5 -> putStrLn "5, *CAT, not implemented yet" >> rtsC mem regs
-        6 -> putStrLn "6, New filing system, not implemented yet May be no action needed" >> rtsC mem regs
+        6 -> putStrLn "6, New filing system, Currently no action taken, mostly works fine though" >> rtsC mem regs
         7 -> putStrLn "7, return file handle range, not implemented yet" >> rtsC mem regs
         8 -> putStrLn "8, OS recived star command, not implemented yet" >> rtsC mem regs
         9 -> putStrLn "9, *EX, not implemented yet" >> rtsC mem regs
@@ -205,7 +206,7 @@ passToCurrentFilingSystem mem regs = do
         n -> putStrLn ("passToCurrentFilingSystem: Error unexpected acc val: " ++ show n) >> rtsC mem regs
 
 -- helper functions
-pad7 :: String -> String
+pad7 :: String -> String -- need to standardise where i use this function
 pad7 = take 7 . (++ repeat ' ')
 
 getFilenameFromXY :: Memory -> CPURegs -> IO String
@@ -230,11 +231,6 @@ stripQuotes s = case s of
     ('"':rest) -> reverse $ dropWhile (== '"') $ reverse rest
     _          -> s
 
-
--- -- OS function .closeSpoolOrExecFile
--- closeSpoolOrExecFile :: Memory -> CPURegs -> IO ()
--- closeSpoolOrExecFile mem regs = do
---     putStrLn "hello from closeSpoolOrExecFile"
 
 -- -- OS function .starLoadSave
 -- starSaveload :: Memory -> CPURegs -> IO ()

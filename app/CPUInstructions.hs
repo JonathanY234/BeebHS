@@ -215,11 +215,11 @@ dumpRAM mem = do
 
 instrUnimplemented :: Memory -> CPURegs -> IO ()
 instrUnimplemented mem regs = do
-    return ()
-    -- pcVal <- readIORef (pc regs)
-    -- putStrLn $ "unimplementedOpcode at " ++ showHexF pcVal
-    -- opcode <- readMemory mem pcVal
-    -- putStrLn $ "Value: " ++ showHexF opcode
+    --return ()
+    pcVal <- readIORef (pc regs)
+    putStrLn $ "unimplementedOpcode at " ++ showHexF pcVal
+    opcode <- readMemory mem pcVal
+    putStrLn $ "Value: " ++ showHexF opcode
 
     -- dumpRAM mem
     -- exitSuccess

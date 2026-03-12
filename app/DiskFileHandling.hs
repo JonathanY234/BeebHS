@@ -14,7 +14,7 @@ import qualified Data.Vector as IBVector
 import System.IO.Unsafe (unsafePerformIO)
 
 diskFileName :: String
-diskFileName = "games/Disc091-HampsteadSTT.ssd"
+diskFileName = "games/Disc182-SlotMachine.ssd"
 
 -- Handle Read and parse .ssd file from disk
 initFileData :: IO (ByteStr.ByteString, IBVector.Vector FileEntry)
@@ -153,19 +153,24 @@ readSlot 2 (_, b, _) = readIORef b
 readSlot 3 (_, _, c) = readIORef c
 readSlot _ _         = return Nothing
 
-writeSlot :: Word8 -> OpenFile -> FileTable -> IO ()
-writeSlot 1 val (a, _, _) = writeIORef a (Just val)
-writeSlot 2 val (_, b, _) = writeIORef b (Just val)
-writeSlot 3 val (_, _, c) = writeIORef c (Just val)
+writeSlot :: Word8 -> Maybe OpenFile -> FileTable -> IO ()
+writeSlot 1 val (a, _, _) = writeIORef a val
+writeSlot 2 val (_, b, _) = writeIORef b val
+writeSlot 3 val (_, _, c) = writeIORef c val
 writeSlot _ _ _           = return ()
 
 addOpenFile :: FileTable -> Word8 -> String -> FileMode -> Int -> IO ()
 addOpenFile fileTable newHandle newFileName newMode fileIndex = do
-    let newOpenFileEntry = OpenFile newHandle newFileName newMode 0 fileIndex
+    let newOpenFile = OpenFile newHandle newFileName newMode 0 fileIndex
 
-    writeSlot newHandle newOpenFileEntry fileTable
+    writeSlot newHandle (Just newOpenFile) fileTable
 
 incrementOpenFilePointer :: Memory -> OpenFile -> IO ()
 incrementOpenFilePointer mem openFile = do
     let newOpenFile = openFile { readWritePosition = readWritePosition openFile + 1 }
-    writeSlot (handle openFile) newOpenFile (fileTable mem)
+    writeSlot (handle openFile) (Just newOpenFile) (fileTable mem)
+
+-- setOpenFileMode :: Memory -> OpenFile -> FileMode -> IO ()
+-- setOpenFileMode mem openFile fileMode = do
+--     let newOpenFile = openFile { mode = fileMode }
+--     writeSlot (handle openFile) newOpenFile (fileTable mem)
