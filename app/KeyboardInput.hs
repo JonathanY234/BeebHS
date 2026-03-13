@@ -64,7 +64,7 @@ keyMapping =
         (SDL.ScancodeApostrophe,  (4, 7)), -- @
         (SDL.ScancodeUp,  (4, 8)), -- :
         (SDL.ScancodeReturn, (4, 9)),
-        (SDL.ScancodeLShift, (5, 0)),
+        (SDL.ScancodeLShift, (5, 0)), --shiftLck ???
         (SDL.ScancodeS, (5, 1)),
         (SDL.ScancodeC, (5, 2)),
         (SDL.ScancodeG, (5, 3)),
@@ -110,7 +110,7 @@ updateKeyboardMatrix mem = do
         newMatrix = foldl updateKey (IBVector.replicate (kbdMatrixRows * kbdMatrixCols) False) keyMapping
 
     writeIORef (keyboardMatrix (sysvia mem)) newMatrix
-    -- printKeyboardMatrix mem
+    --printKeyboardMatrix mem
 
 printKeyboardMatrix :: Memory -> IO ()
 printKeyboardMatrix mem = do

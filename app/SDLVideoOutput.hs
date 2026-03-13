@@ -10,7 +10,7 @@ import SDL qualified
 import SDL.Vect (V4 (..))
 
 import MemoryRegisters(Memory, readMemory)
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (newIORef, readIORef, writeIORef, IORef)
 import Utilities (showHexF)
 
 data SDLContext = SDLContext {window :: SDL.Window, renderer :: SDL.Renderer, texture :: SDL.Texture}
@@ -44,7 +44,7 @@ eventLoop = do
     let quit = SDL.QuitEvent `elem` map SDL.eventPayload events
 
     let eventIsQPress event =
-            case SDL.eventPayload event of 
+            case SDL.eventPayload event of
             SDL.KeyboardEvent keyboardEvent ->
                 SDL.keyboardEventKeyMotion keyboardEvent == SDL.Pressed
                 && SDL.keysymKeycode (SDL.keyboardEventKeysym keyboardEvent) == SDL.KeycodeQ
@@ -55,22 +55,33 @@ eventLoop = do
     return (quit, qPressed)
 
 data GraphicsMode = Text | GraphicsCont | GraphicsSep
-data Mode7State = Mode7State { fgColour :: V4 Word8, bgColour :: V4 Word8, flash :: Bool, graphicsMode :: GraphicsMode, holdGraphics :: Bool, doubleHeight :: Bool}
+data Mode7State = Mode7State { fgColour :: V4 Word8, bgColour :: V4 Word8, flash :: Bool, graphicsMode :: GraphicsMode, holdGraphics :: Bool, doubleHeight :: Bool, dHTopHalf :: Bool}
 
 startState :: Mode7State
-startState = Mode7State { fgColour = V4 255 255 255 255, bgColour = V4 0 0 0 255, flash = False, graphicsMode = Text, holdGraphics = False, doubleHeight = False}
+startState = Mode7State { fgColour = V4 255 255 255 255, bgColour = V4 0 0 0 255, flash = False, graphicsMode = Text, holdGraphics = False, doubleHeight = False, dHTopHalf = True}
+
+handleNewRowStateChange :: IORef Mode7State -> IO ()
+handleNewRowStateChange m7StateRef = do
+    oldM7State <- readIORef m7StateRef
+    let oldDHTopHalf = dHTopHalf oldM7State
+        oldDoubleHeight = doubleHeight oldM7State
+        newDHTopHalf = not oldDoubleHeight || not oldDHTopHalf -- True by default, alternating only when oldDoubleHeight False
+
+        newM7State = Mode7State { fgColour = V4 255 255 255 255, bgColour = V4 0 0 0 255, flash = False, graphicsMode = Text, holdGraphics = False, doubleHeight = False, dHTopHalf = newDHTopHalf}
+    writeIORef m7StateRef newM7State
+
+spaceCharBitMap :: [[Bool]]
+spaceCharBitMap = replicate 20 (replicate 16 False)
 
 renderMode7Frame :: SDLContext -> IBVector.Vector [[Bool]] -> Memory -> Word16 -> IO ()
 renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVector mem startOffset = do
     m7StateRef <- newIORef startState
 
-    --dumpMode7Memory mem
-
     _ <-
         SDL.lockTexture texture_ Nothing >>= \(pixelsPtr, pitch) -> do
         let videoMemStart = 0x7C00
+            --letterIndex is what letter to draw, (cellX, cellY) is the top left Screen coords
 
-            --letterIndex is what letter to draw within fontVector, (cellX, cellY) is the top left Screen coords
             drawLetter :: (Word16, Word16) -> IO ()
             drawLetter (cellX, cellY) = do
                 let idx = ((startOffset + videoMemStart) + cellY*40 + cellX) `mod` 1024
@@ -92,9 +103,11 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
                             135 -> m7State { fgColour = V4 255 255 255 255, graphicsMode = Text } -- white
 
                             --136 flashing
+                            --137 steady
 
-                            140 -> m7State { doubleHeight = False }
-                            141 -> m7State { doubleHeight = True }
+                            --140 -> m7State { doubleHeight = False }                     -- normal height
+                            141 -> m7State { doubleHeight = True }                      -- double height
+
 
                             144 -> m7State { fgColour = V4 0 0 0 255, graphicsMode = GraphicsCont }       -- black    only if VDU
                             145 -> m7State { fgColour = V4 255 0 0 255, graphicsMode = GraphicsCont }     -- red
@@ -105,24 +118,27 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
                             150 -> m7State { fgColour = V4 0 255 255 255, graphicsMode = GraphicsCont }   -- cyan
                             151 -> m7State { fgColour = V4 255 255 255 255, graphicsMode = GraphicsCont } -- white
 
-                            154 -> m7State { graphicsMode = GraphicsSep }
+                            --152 conceal
+                            153 -> m7State { graphicsMode = GraphicsCont } -- contiguous graphics
+                            154 -> m7State { graphicsMode = GraphicsSep } -- separated graphics
 
+                            156 -> m7State { bgColour = V4 0 0 0 255 } -- black background
                             157 -> m7State { bgColour = fgColour m7State }   -- set background
+
+                            --158 hold graphics
+                            --159 release graphics
                             _   -> m7State -- implement the rest
                     writeIORef m7StateRef newState
+                    drawLetterPixelPusher cellX cellY spaceCharBitMap m7State
 
                 else do
-                    --normal character
-                    let trueX = cellX * 16 + fromIntegral borderSize
-                        trueY = cellY * 20 + fromIntegral borderSize
-
-                        safeIndex = if letterIndex >= 0xA0 then letterIndex - 0x80 else letterIndex
+                    let safeIndex = if letterIndex >= 0xA0 then letterIndex - 0x80 else letterIndex
 
                         bankCorrectedLetterInde :: Int
                         bankCorrectedLetterInde = case graphicsMode m7State of
                             Text         -> fromIntegral safeIndex - 32
                             GraphicsCont -> fromIntegral safeIndex - 160 + 96 + 128
-                            GraphicsSep  -> fromIntegral safeIndex - (160 + 192)
+                            GraphicsSep  -> fromIntegral safeIndex - 160 + 96 + 128 + 96
 
                         bankCorrectedLetterIndee = max bankCorrectedLetterInde 0
                         bankCorrectedLetterIndex = min bankCorrectedLetterIndee 287
@@ -130,24 +146,29 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
                         charBitmap = fontVector IBVector.! fromIntegral bankCorrectedLetterIndex
 
                     --handle double height chars
-                    let isTopHalf = even cellY
-                        halfHeight = length charBitmap `div` 2
+                    let halfHeight = length charBitmap `div` 2
                         rowsToDraw =
                             if doubleHeight m7State then
-                                if isTopHalf
+                                if dHTopHalf m7State
                                     then duplicateValues $ take halfHeight charBitmap
                                     else duplicateValues $ drop halfHeight charBitmap
                             else
                                 charBitmap
 
-                    -- draw the char
-                    forM_ (zip [0 ..] rowsToDraw) $ \(row, rowPixels) ->
-                        forM_ (zip [0 ..] rowPixels) $ \(col, bit) -> do
-                            let px = trueX + col
-                                py = trueY + row
-                                colour =
-                                    if bit then fgColour m7State else bgColour m7State
-                            drawPixel (fromIntegral px) (fromIntegral py) colour
+                    drawLetterPixelPusher cellX cellY rowsToDraw m7State
+
+            -- get the glyphs pixel data on screen
+            drawLetterPixelPusher :: Word16 -> Word16 -> [[Bool]] -> Mode7State -> IO ()
+            drawLetterPixelPusher cellX cellY charBitMap m7State = do
+                let trueX = cellX * 16 + fromIntegral borderSize
+                    trueY = cellY * 20 + fromIntegral borderSize
+                forM_ (zip [0 ..] charBitMap) $ \(row, rowPixels) ->
+                    forM_ (zip [0 ..] rowPixels) $ \(col, bit) -> do
+                        let px = trueX + col
+                            py = trueY + row
+                            colour =
+                                if bit then fgColour m7State else bgColour m7State
+                        drawPixel (fromIntegral px) (fromIntegral py) colour
 
             duplicateValues :: [a] -> [a]
             duplicateValues = concatMap (replicate 2)
@@ -162,7 +183,7 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
 
         --forM_ letterScreenCoords drawLetter
         forM_ [0 .. 24] $ \cellY -> do
-            writeIORef m7StateRef startState  -- reset state at newline
+            handleNewRowStateChange m7StateRef
             forM_ [0 .. 39] $ \cellX ->
                 drawLetter (cellX, cellY)
 
@@ -187,5 +208,4 @@ dumpMode7Memory mem = do
         rowVals <- forM [0 .. cols - 1] $ \x -> do
             let addr = startAddr + fromIntegral (y*cols + x)
             readMemory mem addr
-        -- print each row as space-separated hex
         putStrLn $ unwords [showHexF v | v <- rowVals]

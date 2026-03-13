@@ -156,7 +156,7 @@ osFind mem regs = do
         _ -> putStrLn "Unexpected Acc Val"
     rtsC mem regs
 
--- implement DFS code for passToCurrentFilingSystem call. Use .fscEntryPoint as refrence
+-- implement DFS code for passToCurrentFilingSystem call .fscEntryPoint as refrence
 passToCurrentFilingSystem :: Memory -> CPURegs -> IO ()
 passToCurrentFilingSystem mem regs = do
     accVal <- readIORef (accumulator regs)
@@ -198,7 +198,8 @@ passToCurrentFilingSystem mem regs = do
         5 -> putStrLn "5, *CAT, not implemented yet" >> rtsC mem regs
         6 -> putStrLn "6, New filing system, Currently no action taken, mostly works fine though" >> rtsC mem regs
         7 -> putStrLn "7, return file handle range, not implemented yet" >> rtsC mem regs
-        8 -> putStrLn "8, OS recived star command, not implemented yet" >> rtsC mem regs
+        8 -> rtsC mem regs
+            --putStrLn "8, OS recived star command, we ignored it" >> rtsC mem regs
         9 -> putStrLn "9, *EX, not implemented yet" >> rtsC mem regs
         10 -> putStrLn "10, *INFO, not implemented yet" >> rtsC mem regs
         11 -> putStrLn "11, *RUN for library, not implemented yet" >> rtsC mem regs

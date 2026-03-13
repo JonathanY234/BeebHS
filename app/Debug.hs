@@ -49,9 +49,6 @@ printRegs regs = do
     sr' <- readIORef (statusReg regs)
     putStrLn $ "PC=" ++ showHexF pc' ++ " A=" ++ showHexF a' ++ " X=" ++ showHexF x' ++ " Y=" ++ showHexF y' ++ " SP=" ++ showHexF sp' ++ " SR=" ++ showStatusReg sr'
 
--- showStatusReg :: Word8 -> String
--- showStatusReg w = [if testBit w i then '1' else '0' | i <- [7,6..0]]
-
 showStatusReg :: Word8 -> String
 showStatusReg w =
     let flags = "NVBDIZC"
@@ -181,12 +178,7 @@ getValidInput = do
             return (map toUpper cmd, Nothing, Nothing, "")
 
         (cmd:val:_) ->
-            return
-                ( map toUpper cmd
-                , parseHex val
-                , readMaybe val
-                , val
-                )
+            return (map toUpper cmd, parseHex val, readMaybe val, val)
             where
                 parseHex :: String -> Maybe Int
                 parseHex s = case readHex s of
