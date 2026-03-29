@@ -14,7 +14,7 @@ import qualified Data.Vector as IBVector
 import System.IO.Unsafe (unsafePerformIO)
 
 diskFileName :: String
-diskFileName = "games/Disc022-SpaceInvadersArcadeAction.ssd"
+diskFileName = "games/Disc182-SlotMachine.ssd"
 
 -- Handle Read and parse .ssd file from disk
 initFileData :: IO (ByteStr.ByteString, IBVector.Vector FileEntry)

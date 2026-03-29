@@ -49,6 +49,7 @@ extra-doc-files:    CHANGELOG.md
 
 common warnings
     ghc-options: -Wall
+    -- -prof -fprof-late
 
 executable BeebHS
     -- Import common warning flags.

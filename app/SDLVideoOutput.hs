@@ -5,9 +5,11 @@ import Data.Text qualified
 import Data.Vector qualified as IBVector
 import Data.Word (Word8, Word16)
 import Foreign.C.Types (CInt)
-import Foreign.Storable (pokeByteOff)
+import Foreign.Storable (pokeByteOff, pokeElemOff)
+import Foreign.Ptr (Ptr, plusPtr, castPtr)
 import SDL qualified
 import SDL.Vect (V4 (..))
+import Data.Bits ((.&.), shiftR)
 
 import MemoryRegisters(Memory, readMemory)
 import Data.IORef (newIORef, readIORef, writeIORef, IORef)
@@ -67,7 +69,7 @@ handleNewRowStateChange m7StateRef = do
         oldDoubleHeight = doubleHeight oldM7State
         newDHTopHalf = not oldDoubleHeight || not oldDHTopHalf -- True by default, alternating only when oldDoubleHeight False
 
-        newM7State = Mode7State { fgColour = V4 255 255 255 255, bgColour = V4 0 0 0 255, flash = False, graphicsMode = Text, holdGraphics = False, doubleHeight = False, dHTopHalf = newDHTopHalf}
+        newM7State = Mode7State { fgColour = V4 255 255 255 255, bgColour = V4 255 0 0 0, flash = False, graphicsMode = Text, holdGraphics = False, doubleHeight = False, dHTopHalf = newDHTopHalf}
     writeIORef m7StateRef newM7State
 
 spaceCharBitMap :: [[Bool]]
@@ -93,13 +95,13 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
                     -- control code
                     let newState = case letterIndex of
                             --TODO: only if enabled with VDU 23,18,3,1;0;0;0;
-                            128 -> m7State { fgColour = V4 0 0 0 255, graphicsMode = Text }       -- black    only if VDU
+                            128 -> m7State { fgColour = V4 255 0 0 0, graphicsMode = Text }       -- black    only if VDU
                             129 -> m7State { fgColour = V4 255 0 0 255, graphicsMode = Text }     -- red
-                            130 -> m7State { fgColour = V4 0 255 0 255, graphicsMode = Text }     -- green
-                            131 -> m7State { fgColour = V4 255 255 0 255, graphicsMode = Text }   -- yellow
-                            132 -> m7State { fgColour = V4 0 0 255 255, graphicsMode = Text }     -- blue
-                            133 -> m7State { fgColour = V4 255 0 255 255, graphicsMode = Text }   -- magenta
-                            134 -> m7State { fgColour = V4 0 255 255 255, graphicsMode = Text }   -- cyan
+                            130 -> m7State { fgColour = V4 255 0 255 0, graphicsMode = Text }     -- green
+                            131 -> m7State { fgColour = V4 255 0 255 255, graphicsMode = Text }   -- yellow
+                            132 -> m7State { fgColour = V4 255 255 0 0, graphicsMode = Text }     -- blue
+                            133 -> m7State { fgColour = V4 255 255 0 255, graphicsMode = Text }   -- magenta
+                            134 -> m7State { fgColour = V4 255 255 255 0, graphicsMode = Text }   -- cyan
                             135 -> m7State { fgColour = V4 255 255 255 255, graphicsMode = Text } -- white
 
                             --136 flashing
@@ -109,20 +111,20 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
                             141 -> m7State { doubleHeight = True }                      -- double height
 
 
-                            144 -> m7State { fgColour = V4 0 0 0 255, graphicsMode = GraphicsCont }       -- black    only if VDU
+                            144 -> m7State { fgColour = V4 255 0 0 0, graphicsMode = GraphicsCont }       -- black    only if VDU
                             145 -> m7State { fgColour = V4 255 0 0 255, graphicsMode = GraphicsCont }     -- red
-                            146 -> m7State { fgColour = V4 0 255 0 255, graphicsMode = GraphicsCont }     -- green
-                            147 -> m7State { fgColour = V4 255 255 0 255, graphicsMode = GraphicsCont }   -- yellow
-                            148 -> m7State { fgColour = V4 0 0 255 255, graphicsMode = GraphicsCont }     -- blue
-                            149 -> m7State { fgColour = V4 255 0 255 255, graphicsMode = GraphicsCont }   -- magenta
-                            150 -> m7State { fgColour = V4 0 255 255 255, graphicsMode = GraphicsCont }   -- cyan
+                            146 -> m7State { fgColour = V4 255 0 255 0, graphicsMode = GraphicsCont }     -- green
+                            147 -> m7State { fgColour = V4 255 0 255 255, graphicsMode = GraphicsCont }   -- yellow
+                            148 -> m7State { fgColour = V4 255 255 0 0, graphicsMode = GraphicsCont }     -- blue
+                            149 -> m7State { fgColour = V4 255 255 0 255, graphicsMode = GraphicsCont }   -- magenta
+                            150 -> m7State { fgColour = V4 255 255 255 0, graphicsMode = GraphicsCont }   -- cyan
                             151 -> m7State { fgColour = V4 255 255 255 255, graphicsMode = GraphicsCont } -- white
 
                             --152 conceal
                             153 -> m7State { graphicsMode = GraphicsCont } -- contiguous graphics
                             154 -> m7State { graphicsMode = GraphicsSep } -- separated graphics
 
-                            156 -> m7State { bgColour = V4 0 0 0 255 } -- black background
+                            156 -> m7State { bgColour = V4 255 0 0 0 } -- black background
                             157 -> m7State { bgColour = fgColour m7State }   -- set background
 
                             --158 hold graphics
@@ -174,19 +176,48 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
             duplicateValues = concatMap (replicate 2)
 
             drawPixel :: Int -> Int -> V4 Word8 -> IO ()
-            drawPixel x y (V4 red green blue alpha) = do
-                let offset = (y * fromIntegral pitch + x * 4) :: Int -- ABGR8888 = 4 bytes per pixel
-                pokeByteOff pixelsPtr offset alpha
-                pokeByteOff pixelsPtr (offset + 1) blue
-                pokeByteOff pixelsPtr (offset + 2) green
-                pokeByteOff pixelsPtr (offset + 3) red
+            --drawPixel x y (V4 red green blue alpha) = do
+            drawPixel x y colour = do
+                -- let offset = (y * fromIntegral pitch + x * 4) :: Int -- ABGR8888 = 4 bytes per pixel
+                -- pokeByteOff pixelsPtr offset alpha
+                -- pokeByteOff pixelsPtr (offset + 1) blue
+                -- pokeByteOff pixelsPtr (offset + 2) green
+                -- pokeByteOff pixelsPtr (offset + 3) red
 
-        --forM_ letterScreenCoords drawLetter
+                let pixelPtr = pixelsPtr `plusPtr` (y * fromIntegral pitch)  -- start of row
+                pokeElemOff (castPtr pixelPtr) x colour
+
         forM_ [0 .. 24] $ \cellY -> do
             handleNewRowStateChange m7StateRef
             forM_ [0 .. 39] $ \cellX ->
                 drawLetter (cellX, cellY)
 
+    SDL.unlockTexture texture_
+
+    SDL.copy renderer_ texture_ Nothing Nothing
+    SDL.present renderer_
+
+renderBitMapModeFrame :: SDLContext -> Memory -> IO ()
+renderBitMapModeFrame SDLContext {texture = texture_, renderer = renderer_} mem = do
+    let m4VideoMemStart = 0x5800
+    -- 7FFF – 5800 = 27FF
+
+    let m4Palette0 = V4 0 0 0 255       -- black
+        m4Palette1 = V4 255 255 255 255 -- white
+    _ <-
+        SDL.lockTexture texture_ Nothing >>= \(pixelsPtr, pitch) -> do
+
+            let drawMode4Byte :: Word8 -> Ptr (V4 Word8) -> IO ()
+                drawMode4Byte byte ptr = do 
+                    -- Loop over the 8 bits (MSB → LSB)
+                    forM_ [0..7] (\i -> do
+                        let bit = (byte `shiftR` (7 - i)) .&. 1
+                            colour = if bit == 1 then m4Palette1 else m4Palette0
+                        pokeElemOff ptr i colour
+                        )
+
+            undefined
+    
     SDL.unlockTexture texture_
 
     SDL.copy renderer_ texture_ Nothing Nothing
