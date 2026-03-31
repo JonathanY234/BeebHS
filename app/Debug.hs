@@ -1,6 +1,6 @@
 module Debug where
 
-import MemoryRegisters (Memory (sysvia), readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg))
+import MemoryRegisters (Memory (sysvia), readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), readRegs, writeRegs)
 import Utilities (showHexX, showHexF)
 import Sysvia (kbdMatrixRows, kbdMatrixCols, Sysvia (keyboardMatrix, via), kbdMatrixCols)
 import Via (Via (pcr, ier, ddrb, ddra, timer1c, timer1l, orb, ira, irb, timer2c, acr, ora, timer2l, ifr))
@@ -39,14 +39,14 @@ showMemoryPage memory pageNum = do
             putStr $ strVal ++ padding2
         putStrLn ""
 
-printRegs :: CPURegs -> IO ()
-printRegs regs = do
-    pc' <- readIORef (pc regs)
-    a'  <- readIORef (accumulator regs)
-    x'  <- readIORef (x regs)
-    y'  <- readIORef (y regs)
-    sp' <- readIORef (stackP regs)
-    sr' <- readIORef (statusReg regs)
+printRegs :: Memory -> IO ()
+printRegs mem = do
+    pc' <- readRegs pc mem
+    a'  <- readRegs accumulator mem
+    x'  <- readRegs x mem
+    y'  <- readRegs y mem
+    sp' <- readRegs stackP mem
+    sr' <- readRegs statusReg mem
     putStrLn $ "PC=" ++ showHexF pc' ++ " A=" ++ showHexF a' ++ " X=" ++ showHexF x' ++ " Y=" ++ showHexF y' ++ " SP=" ++ showHexF sp' ++ " SR=" ++ showStatusReg sr'
 
 showStatusReg :: Word8 -> String
@@ -130,34 +130,34 @@ debuggerHelpMessage =
 data DebugState = DebugState { breakpoints :: [Word16],  stepsRemaining :: Int, pause :: Bool, simulatedKeyPress :: Int}
 
 -- processing input is pain
-handleInput :: Memory -> CPURegs -> DebugState -> IO DebugState
-handleInput mem regs debugState@(DebugState bps _ _ _) = do
+handleInput :: Memory -> DebugState -> IO DebugState
+handleInput mem debugState@(DebugState bps _ _ _) = do
     (command, value) <- getValidInput -- assumes valid input recieved from this function
     case command of
         "C" -> return debugState { stepsRemaining = -1 }
         "S" -> return debugState { stepsRemaining = fromIntegral value }
-        "B" -> handleInput mem regs debugState { breakpoints = fromIntegral value:bps }
-        "BR" -> handleInput mem regs debugState { breakpoints = delete (fromIntegral value) bps }
+        "B" -> handleInput mem debugState { breakpoints = fromIntegral value:bps }
+        "BR" -> handleInput mem debugState { breakpoints = delete (fromIntegral value) bps }
         "BS" -> do
             putStrLn $ unwords $ map showHexX bps
-            handleInput mem regs debugState
+            handleInput mem debugState
         "R" -> do
-            printRegs regs
-            handleInput mem regs debugState
+            printRegs mem
+            handleInput mem debugState
         "M" -> do
             let pageIndex = fromIntegral (value `div` 256)
             showMemoryPage mem pageIndex
-            handleInput mem regs debugState
+            handleInput mem debugState
         "PQ" -> do
-            handleInput mem regs debugState { simulatedKeyPress = 1 }
+            handleInput mem debugState { simulatedKeyPress = 1 }
             -- if simKP == 0
-            --     then handleInput mem regs debugState { simulatedKeyPress = 1 } -- fix
-            --     else handleInput mem regs debugState { simulatedKeyPress = 2 }
+            --     then handleInput mem debugState { simulatedKeyPress = 1 } -- fix
+            --     else handleInput mem debugState { simulatedKeyPress = 2 }
         "J" -> do
-            writeIORef (pc regs) (fromIntegral value)
-            handleInput mem regs debugState
-        "H" -> putStrLn debuggerHelpMessage >> handleInput mem regs debugState
-        "RS" -> printSysviaRegs mem >> handleInput mem regs debugState
+            writeRegs pc mem (fromIntegral value)
+            handleInput mem debugState
+        "H" -> putStrLn debuggerHelpMessage >> handleInput mem debugState
+        "RS" -> printSysviaRegs mem >> handleInput mem debugState
         _ -> do
             putStrLn "Invalid command, this should not be reachable should have been handled by getValidInput"
             return debugState

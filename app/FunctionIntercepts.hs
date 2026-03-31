@@ -1,30 +1,29 @@
 module FunctionIntercepts where
 
-import MemoryRegisters (Memory, CPURegs(pc, accumulator, statusReg, x, y), readMemory, fileTable, FileMode(Input), OpenFile(readWritePosition))
+import MemoryRegisters (Memory, CPURegs(pc, accumulator, x, y), readMemory, fileTable, FileMode(Input), OpenFile(readWritePosition), readRegs, writeRegs)
 import DiskFileHandling (getFileData, fileNameToFileEntry, getExecAddr, loadFile, changeExecAddr, readSlot, addOpenFile, FileEntry(fileIndex, len), getFileEntryByFileIndex, getFileByte, incrementOpenFilePointer, writeSlot)
 import CPUInstructions (rts, srWriteCarry)
 
-import Data.IORef (readIORef, writeIORef)
 import Data.Bits (Bits(shiftL))
 import Data.Word (Word16, Word8)
 
-checkForIntercept :: Memory -> CPURegs -> IO Bool
-checkForIntercept mem regs = do
-    pcVal <- readIORef (pc regs)
+checkForIntercept :: Memory -> IO Bool
+checkForIntercept mem = do
+    pcVal <- readRegs pc mem
     case pcVal of
         --0xE23E -> starSaveload mem regs >> return True -- not needed
-        0xFFDD -> osFile mem regs >> return True
-        0xFFCE -> osFind mem regs >> return True
-        0xFFD7 -> osBget mem regs >> return True
-        0xE031 -> passToCurrentFilingSystem mem regs >> return True
+        0xFFDD -> osFile mem >> return True
+        0xFFCE -> osFind mem >> return True
+        0xFFD7 -> osBget mem >> return True
+        0xE031 -> passToCurrentFilingSystem mem >> return True
         _      -> return False
 
 -- DFS function OSFILE
-osFile :: Memory -> CPURegs -> IO ()
-osFile mem regs = do
+osFile :: Memory -> IO ()
+osFile mem = do
     putStr "OSFile "
 
-    accVal <- readIORef (accumulator regs)
+    accVal <- readRegs accumulator mem
     case accVal of
         0 -> putStrLn "0, not implemented"
         1 -> putStrLn "1, not implemented"
@@ -36,7 +35,7 @@ osFile mem regs = do
         0xFF -> do
             putStrLn "FF, Load Specified File"
 
-            paramBlock <- getParamBlockXY regs
+            paramBlock <- getParamBlockXY mem
             filename <- getFileNameFromParamBlock mem paramBlock
 
             -- Get load address from param block
@@ -49,16 +48,16 @@ osFile mem regs = do
 
             -- A, P are destroyed; X,Y unchanged
             --writeIORef (accumulator regs) 0x00  -- or leave undefined
-            rtsC mem regs
+            rtsC mem
 
 
         n -> putStrLn $ "Unknown A val: " ++ show n
 
 --OSFILE HELPERS
-getParamBlockXY :: CPURegs -> IO Word16
-getParamBlockXY regs = do
-    xVal <- readIORef (x regs)
-    yVal <- readIORef (y regs)
+getParamBlockXY :: Memory -> IO Word16
+getParamBlockXY mem = do
+    xVal <- readRegs x mem
+    yVal <- readRegs y mem
     return $ fromIntegral yVal `shiftL` 8 + fromIntegral xVal
 getFileNameFromParamBlock :: Memory -> Word16 -> IO String
 getFileNameFromParamBlock mem paramBlock = do
@@ -87,10 +86,10 @@ osFileLoadFileHelper mem filename loadIndicator possibleLoadAddr = do
 
 
 -- DFS function OSBGET
-osBget :: Memory -> CPURegs -> IO ()
-osBget mem regs = do
+osBget :: Memory -> IO ()
+osBget mem = do
     putStrLn "hello from OSBget"
-    channelNumber <- readIORef (y regs)
+    channelNumber <- readRegs y mem
 
     mfile <- readSlot channelNumber (fileTable mem)
     case mfile of
@@ -103,27 +102,27 @@ osBget mem regs = do
             if readWritePosition openFile < len fileEntry then do
 
                 let byteValue = getFileByte fileEntry (readWritePosition openFile)
-                writeIORef (accumulator regs) byteValue
-                srWriteCarry (statusReg regs) False
+                writeRegs accumulator mem byteValue
+                srWriteCarry mem False
                 incrementOpenFilePointer mem openFile
             else do
 
-                writeIORef (accumulator regs) 0xFE --EOF
-                srWriteCarry (statusReg regs) True
+                writeRegs accumulator mem 0xFE --EOF
+                srWriteCarry mem True
 
-        Nothing -> writeIORef (accumulator regs) 0 --this should not happen. Not sure if this is correct responce
-    rtsC mem regs
+        Nothing -> writeRegs accumulator mem 0 --this should not happen. Not sure if this is correct responce
+    rtsC mem
 
 
 -- DFS function OSFIND
-osFind :: Memory -> CPURegs -> IO ()
-osFind mem regs = do
+osFind :: Memory -> IO ()
+osFind mem = do
     putStr "OSFind "
-    accVal <- readIORef (accumulator regs)
+    accVal <- readRegs accumulator mem
     case accVal of
         0 -> do
             putStrLn "0, close a file or close all files, Only 'close a file' part implemented"
-            channelNumber <- readIORef (y regs)
+            channelNumber <- readRegs y mem
 
             writeSlot channelNumber Nothing (fileTable mem)
 
@@ -137,16 +136,16 @@ osFind mem regs = do
                 Just _  -> putStrLn "there is already an openFile here. AHHHH"
                 Nothing -> do
 
-                    fileName <- getFilenameFromXY mem regs
+                    fileName <- getFilenameFromXY mem
                     print fileName
 
                     case fileNameToFileEntry fileName files of
                         Just fileEntry -> do
                             addOpenFile (fileTable mem) usingFileHandle fileName Input (fileIndex fileEntry)
-                            writeIORef (accumulator regs) usingFileHandle
+                            writeRegs accumulator mem usingFileHandle
                         Nothing        -> do
                             putStrLn $ "fileName not found ahhhhhhh: " ++ fileName
-                            writeIORef (accumulator regs) 0
+                            writeRegs accumulator mem 0
 
 
 
@@ -154,20 +153,20 @@ osFind mem regs = do
         0xC0 -> putStrLn "0xC0, open a file (input/output), Not implemented"
 
         _ -> putStrLn "Unexpected Acc Val"
-    rtsC mem regs
+    rtsC mem
 
 -- implement DFS code for passToCurrentFilingSystem call .fscEntryPoint as refrence
-passToCurrentFilingSystem :: Memory -> CPURegs -> IO ()
-passToCurrentFilingSystem mem regs = do
-    accVal <- readIORef (accumulator regs)
+passToCurrentFilingSystem :: Memory -> IO ()
+passToCurrentFilingSystem mem = do
+    accVal <- readRegs accumulator mem
     putStr "passToCurrentFilingSystem: "
     case accVal of
-        0 -> putStrLn "0, *OPT, not implemented yet" >> rtsC mem regs
-        1 -> putStrLn "1, EOF check, not implemented yet" >> rtsC mem regs
+        0 -> putStrLn "0, *OPT, not implemented yet" >> rtsC mem
+        1 -> putStrLn "1, EOF check, not implemented yet" >> rtsC mem
         2 -> do
             putStrLn "2, */ command"
 
-            command <- getFilenameFromXY mem regs
+            command <- getFilenameFromXY mem
             print command
 
             let (bytes, files) = getFileData
@@ -176,13 +175,13 @@ passToCurrentFilingSystem mem regs = do
                 Just fileEntry -> do
                     -- potencially in future add 0xFFFFFFFF check
                     loadFile mem fileEntry bytes
-                    writeIORef (pc regs) (getExecAddr fileEntry)
+                    writeRegs pc mem (getExecAddr fileEntry)
                     --return ()
                 Nothing        -> putStrLn $ "fileName not found ahhhhhhh: " ++ command
-        3 -> putStrLn "3, unrecognised, not implemented yet" >> rtsC mem regs
+        3 -> putStrLn "3, unrecognised, not implemented yet" >> rtsC mem
         4 -> do
             putStrLn "4, *RUN"
-            command <- getFilenameFromXY mem regs
+            command <- getFilenameFromXY mem
 
             putStrLn command
 
@@ -192,28 +191,28 @@ passToCurrentFilingSystem mem regs = do
                 Just fileEntry -> do
                     -- potencially in future add 0xFFFFFFFF check
                     loadFile mem fileEntry bytes
-                    writeIORef (pc regs) (getExecAddr fileEntry)
+                    writeRegs pc mem (getExecAddr fileEntry)
                 Nothing        -> putStrLn $ "fileName not found ahhhhhhh: " ++ command
 
-        5 -> putStrLn "5, *CAT, not implemented yet" >> rtsC mem regs
-        6 -> putStrLn "6, New filing system, Currently no action taken, mostly works fine though" >> rtsC mem regs
-        7 -> putStrLn "7, return file handle range, not implemented yet" >> rtsC mem regs
-        8 -> rtsC mem regs
-            --putStrLn "8, OS recived star command, we ignored it" >> rtsC mem regs
-        9 -> putStrLn "9, *EX, not implemented yet" >> rtsC mem regs
-        10 -> putStrLn "10, *INFO, not implemented yet" >> rtsC mem regs
-        11 -> putStrLn "11, *RUN for library, not implemented yet" >> rtsC mem regs
-        12-> putStrLn "12, *RENAME, not implemented yet" >> rtsC mem regs
-        n -> putStrLn ("passToCurrentFilingSystem: Error unexpected acc val: " ++ show n) >> rtsC mem regs
+        5 -> putStrLn "5, *CAT, not implemented yet" >> rtsC mem
+        6 -> putStrLn "6, New filing system, Currently no action taken, mostly works fine though" >> rtsC mem
+        7 -> putStrLn "7, return file handle range, not implemented yet" >> rtsC mem
+        8 -> rtsC mem
+            --putStrLn "8, OS recived star command, we ignored it" >> rtsC mem
+        9 -> putStrLn "9, *EX, not implemented yet" >> rtsC mem
+        10 -> putStrLn "10, *INFO, not implemented yet" >> rtsC mem
+        11 -> putStrLn "11, *RUN for library, not implemented yet" >> rtsC mem
+        12-> putStrLn "12, *RENAME, not implemented yet" >> rtsC mem
+        n -> putStrLn ("passToCurrentFilingSystem: Error unexpected acc val: " ++ show n) >> rtsC mem
 
 -- helper functions
 pad7 :: String -> String -- need to standardise where i use this function
 pad7 = take 7 . (++ repeat ' ')
 
-getFilenameFromXY :: Memory -> CPURegs -> IO String
-getFilenameFromXY mem regs = do
-    xVal <- readIORef (x regs)
-    yVal <- readIORef (y regs)
+getFilenameFromXY :: Memory -> IO String
+getFilenameFromXY mem = do
+    xVal <- readRegs x mem
+    yVal <- readRegs y mem
     let fileAddressXY :: Word16
         fileAddressXY = (fromIntegral yVal `shiftL` 8) + fromIntegral xVal
 
@@ -232,30 +231,7 @@ stripQuotes s = case s of
     ('"':rest) -> reverse $ dropWhile (== '"') $ reverse rest
     _          -> s
 
-
--- -- OS function .starLoadSave
--- starSaveload :: Memory -> CPURegs -> IO ()
--- starSaveload mem regs = do
---     accVal <- readIORef (accumulator regs)
---     if accVal == 0
---         then putStrLn "saveload called for *SAVE. not implemented" >> return ()
---         else putStrLn "saveload called for *LOAD"
-
---     xyFileName <- getFilenameFromXY mem regs
---     print xyFileName
-
---     (bytes, files) <- getFileData
-
---     case fileNameToFileEntry xyFileName files of
---         Just fileEntry -> do
---             loadFile mem fileEntry bytes
---             rtsC mem regs
---         Nothing        -> do
---             print "fileName not found"
---             writeIORef (pc regs) 0xE267
-
-
 -- Return from Subroutine copy, because after a intercepted function its best to just rtsC to get back to 6502 code
 -- Using imported rts function but adapted to remove uneeded parameters
-rtsC :: Memory -> CPURegs -> IO ()
-rtsC mem regs = rts undefined mem regs undefined
+rtsC :: Memory -> IO ()
+rtsC mem  = rts undefined mem undefined

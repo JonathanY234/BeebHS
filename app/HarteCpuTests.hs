@@ -15,7 +15,7 @@ import qualified Data.Map as M
 
 
 import CPUInstructions (opcodeTable)
-import MemoryRegisters ( Memory (cycleCount), initMemory, writeMemory, readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters)
+import MemoryRegisters ( Memory (cycleCount), initMemory, writeMemory, readMemory, CPURegs(pc, x, y, stackP, accumulator, statusReg), initRegisters, readRegs)
 import Debug (opcodeNames, showStatusReg, printRegs)
 import Utilities (showHexF, showHexX)
 import Numeric (showHex)
@@ -104,37 +104,37 @@ showMemoryNotZeroFormat mem =
 
     in go 0 ""
 
-loadInitialRegistersAndMem :: CpuState -> IO (CPURegs, Memory)
-loadInitialRegistersAndMem CpuState{pcState=iPc, accumulatorState=iA, xState=iX, yState=iY, stackPState=iSp, statusRegState=iSr, ram=memoryVals} = do
+loadInitialRegisters :: CpuState -> IO Memory
+loadInitialRegisters CpuState{pcState=iPc, accumulatorState=iA, xState=iX, yState=iY, stackPState=iSp, statusRegState=iSr, ram=memoryVals} = do
 
     regs <- initRegisters iPc iA iX iY iSp iSr
-    mem <- initMemory 0x00
+    mem <- initMemory 0x00 regs
     mapM_ (uncurry (writeMemory mem)) memoryVals
 
-    return (regs, mem)
+    return mem
 
-isFinalRegsMemCyclesAsExpected :: CPURegs -> Memory -> CpuState -> Int -> IO Bool
-isFinalRegsMemCyclesAsExpected regs mem CpuState{pcState=fPc, accumulatorState=fA, xState=fX, yState=fY, stackPState=fSp, statusRegState=fSr, ram=memoryVals} expectedCycles = do
-    pcVal <- readIORef (pc regs)
-    aVal  <- readIORef (accumulator regs)
-    xVal  <- readIORef (x regs)
-    yVal  <- readIORef (y regs)
-    spVal <- readIORef (stackP regs)
-    srVal <- readIORef (statusReg regs)
+isFinalRegsMemCyclesAsExpected :: Memory -> CpuState -> Int -> IO Bool
+isFinalRegsMemCyclesAsExpected mem CpuState{pcState=fPc, accumulatorState=fA, xState=fX, yState=fY, stackPState=fSp, statusRegState=fSr, ram=memoryVals} expectedCycles = do
+    pcVal <- readRegs pc mem
+    aVal  <- readRegs accumulator mem
+    xVal  <- readRegs x mem
+    yVal  <- readRegs y mem
+    spVal <- readRegs stackP mem
+    srVal <- readRegs statusReg mem
 
     let regsMatch = and [ fPc == pcVal, fA  == aVal, fX  == xVal, fY  == yVal, fSp == spVal, fSr == srVal ]
 
-    finalMem <- initMemory 0x00
+    finalMem <- initMemory 0x00 undefined
     mapM_ (uncurry (writeMemory finalMem)) memoryVals
 
-    let allEqual i
+    let allRamEqual i
             | i == (64*1024)  = return True
             | otherwise = do
                 x <- readMemory mem i
                 y <- readMemory finalMem i
-                if x /= y then return False else allEqual (i + 1)
+                if x /= y then return False else allRamEqual (i + 1)
 
-    memMatch <- allEqual 0
+    memMatch <- allRamEqual 0
 
     cyclesPassed <- readIORef (cycleCount mem)
     let cyclesMatch = cyclesPassed == fromIntegral expectedCycles
@@ -144,15 +144,15 @@ isFinalRegsMemCyclesAsExpected regs mem CpuState{pcState=fPc, accumulatorState=f
 run1Test :: ATest -> IO Bool
 run1Test ATest{name=name, initial=initial, final=final, cycles=cycles} = do
 
-    (regs, mem) <- loadInitialRegistersAndMem initial
+    mem <- loadInitialRegisters initial
 
     -- run one instruction just like normal
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     currentInstructionOpcode <- readMemory mem pcVal
     let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
-    instr mem regs
+    instr mem
 
-    result <- isFinalRegsMemCyclesAsExpected regs mem final (length cycles)
+    result <- isFinalRegsMemCyclesAsExpected mem final (length cycles)
 
     let verbose = False
     let dontShowAdcSbc = True
@@ -167,7 +167,7 @@ run1Test ATest{name=name, initial=initial, final=final, cycles=cycles} = do
 
         actualMemoryValues <- showMemoryNotZeroFormat mem
         putStr "Actual  : "
-        printRegs regs
+        printRegs mem
         putStrLn $ "Memory= " ++ actualMemoryValues ++ "   Cycles: " ++ show actualCycles
 
     return result

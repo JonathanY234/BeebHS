@@ -1,7 +1,7 @@
 module CPU6502 where
 
 import CPUInstructions
-import MemoryRegisters (initMemory, readMemory, Memory, CPURegs(pc, statusReg), initRegisters, sysvia)
+import MemoryRegisters (initMemory, initRegisters, readMemory, Memory, CPURegs(pc), sysvia, readRegs, writeRegs)
 import LoadRom (loadRom)
 import Debug ( DebugState(..), handleInput, debuggerLineOutput, manageSimulatedKeyPress)
 import Sysvia ( sysviaPoll, Sysvia (irqPendingFlag), doInterruptCheck )
@@ -12,10 +12,10 @@ import Data.IORef (readIORef, writeIORef)
 import Control.Monad (when, unless)
 import qualified Data.Vector as IBVector
 
-cpuInit :: IO (Memory, CPURegs)
+cpuInit :: IO Memory
 cpuInit = do
-    mem <- initMemory 0xFF
     regs <- initRegisters 0 0 0 0 0xFF 0x20
+    mem <- initMemory 0xFF regs
 
     -- This is the 'machine operating system' in the upper quarter of address space
     --loadRom "roms/os12_bemdump.rom" 0xC000 mem
@@ -24,10 +24,10 @@ cpuInit = do
     loadRom "roms/basic2.rom" 0x8000 mem
 
     initialPC <- getInitialPC mem
-    writeIORef (pc regs) initialPC
-    srWriteInterruptDisable (statusReg regs) True
+    writeRegs pc mem initialPC
+    srWriteInterruptDisable mem True
 
-    return (mem, regs)
+    return mem
 
 getInitialPC :: Memory -> IO Word16
 getInitialPC mem = do
@@ -38,47 +38,47 @@ getInitialPC mem = do
 
     return $ combineTwoBytes low high
 
-doIRQfromSysvia :: Memory -> CPURegs -> IO ()
-doIRQfromSysvia mem regs = do
+doIRQfromSysvia :: Memory -> IO ()
+doIRQfromSysvia mem = do
     let svia = sysvia mem
 
     irqPendingFlagVal <- readIORef (irqPendingFlag svia)
     when irqPendingFlagVal $ do
 
-        irq mem regs
+        irq mem
         writeIORef (irqPendingFlag svia) False
 
-runInstructions :: Memory -> CPURegs -> Int -> IO ()
-runInstructions mem regs count = loop 0 --replicateM might be cleaner here
+runInstructions :: Memory -> Int -> IO ()
+runInstructions mem count = loop 0 --replicateM might be cleaner here
     where
         loop n
             | n >= count = return ()
             | otherwise = do
-                pcVal <- readIORef (pc regs)
+                pcVal <- readRegs pc mem
 
-                wasIntercepted <- checkForIntercept mem regs
+                wasIntercepted <- checkForIntercept mem
                 
                 unless wasIntercepted $ do
                     currentInstructionOpcode <- readMemory mem pcVal
                     let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
-                    instr mem regs
+                    instr mem
 
                     sysviaPoll (sysvia mem) 2
                     doInterruptCheck (sysvia mem)
-                    doIRQfromSysvia mem regs
+                    doIRQfromSysvia mem
                     loop (n+1)
 
-debuggerStart :: Memory -> CPURegs -> IO ()
-debuggerStart mem regs = do
-    pcVal <- readIORef (pc regs)
+debuggerStart :: Memory -> IO ()
+debuggerStart mem = do
+    pcVal <- readRegs pc mem
     operand1 <- readMemory mem (pcVal+1)
     operand2 <- readMemory mem (pcVal+2)
     currentInstructionOpcode <- readMemory mem pcVal
 
     putStr $ debuggerLineOutput pcVal currentInstructionOpcode operand1 operand2
 
-runInstructionsDebug :: Memory -> CPURegs -> Int -> DebugState -> IO DebugState
-runInstructionsDebug mem regs count = loop 0 --dbs
+runInstructionsDebug :: Memory -> Int -> DebugState -> IO DebugState
+runInstructionsDebug mem count = loop 0 --dbs
     where
         loop :: Int -> DebugState -> IO DebugState
         loop n debugState@(DebugState _ _ pause _)
@@ -88,7 +88,7 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                 -- get user input
                 newDebugState <- if pause
                     then do
-                        handleInput mem regs debugState
+                        handleInput mem debugState
 
                     else return debugState
 
@@ -101,17 +101,17 @@ runInstructionsDebug mem regs count = loop 0 --dbs
                     manageSimulatedKeyPress mem
 
                 -- run current instruction
-                pcVal <- readIORef (pc regs)
+                pcVal <- readRegs pc mem
                 currentInstructionOpcode <- readMemory mem pcVal
                 let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
 
-                instr mem regs
+                instr mem
                 sysviaPoll (sysvia mem) 2
                 doInterruptCheck (sysvia mem)
-                doIRQfromSysvia mem regs
+                doIRQfromSysvia mem
 
                 -- next instruction
-                nextPcVal <- readIORef (pc regs)
+                nextPcVal <- readRegs pc mem
                 operand1 <- readMemory mem (nextPcVal+1)
                 operand2 <- readMemory mem (nextPcVal+2)
                 nextInstructionOpcode <- readMemory mem nextPcVal

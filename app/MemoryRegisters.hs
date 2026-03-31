@@ -3,11 +3,11 @@ module MemoryRegisters where
 import Sysvia (Sysvia, initSysvia, readSysvia, writeSysvia)
 
 import Data.Word (Word16, Word8)
-import Data.IORef (IORef, newIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import qualified Data.Vector.Unboxed.Mutable as MUVector
 import Data.Bits ((.&.))
 
-data Memory = Memory {m :: MUVector.IOVector Word8, cycleCount :: IORef Integer, sysvia :: Sysvia, fileTable :: FileTable}
+data Memory = Memory {m :: MUVector.IOVector Word8, regs :: CPURegs, cycleCount :: IORef Integer, sysvia :: Sysvia, fileTable :: FileTable}
 
 readMemory :: Memory -> Word16 -> IO Word8
 readMemory mem address =
@@ -25,13 +25,21 @@ writeMemory mem address value = do
         MUVector.write (m mem) (fromIntegral address) value
     -- MUVector.write (m mem) (fromIntegral address) value
 
-initMemory :: Word8 -> IO Memory
-initMemory initialValue = do
+initMemory :: Word8 -> CPURegs -> IO Memory
+initMemory initialValue initialRegs = do
     mVec   <- MUVector.replicate (64*1024) initialValue
     cycleCountRef <- newIORef 0
     sysviaa <- initSysvia
-    Memory mVec cycleCountRef sysviaa <$> initFileTable
+    Memory mVec initialRegs cycleCountRef sysviaa <$> initFileTable
 
+writeMemoryArrayOnly :: Memory -> Word16 -> Word8 -> IO ()
+writeMemoryArrayOnly mem address = MUVector.write (m mem) (fromIntegral address)
+
+readMemoryArrayOnly :: Memory -> Word16 -> IO Word8
+readMemoryArrayOnly mem address = MUVector.read (m mem) (fromIntegral address) --value
+
+
+-- CPU Registers
 data CPURegs = CPURegs {pc :: IORef Word16, accumulator :: IORef Word8, x :: IORef Word8, y :: IORef Word8, stackP :: IORef Word8, statusReg :: IORef Word8}
 
 initRegisters :: Word16 -> Word8 -> Word8 -> Word8 -> Word8 -> Word8 -> IO CPURegs
@@ -44,11 +52,11 @@ initRegisters ipc ia ix iy isp isr = do
     srRef <- newIORef isr
     return (CPURegs pcRef aRef xRef yRef spRef srRef)
 
-writeMemoryArrayOnly :: Memory -> Word16 -> Word8 -> IO ()
-writeMemoryArrayOnly mem address = MUVector.write (m mem) (fromIntegral address)
+readRegs ::  (CPURegs -> IORef a) -> Memory -> IO a
+readRegs f mem = readIORef (f (regs mem))
 
-readMemoryArrayOnly :: Memory -> Word16 -> IO Word8
-readMemoryArrayOnly mem address = MUVector.read (m mem) (fromIntegral address) --value
+writeRegs :: (CPURegs -> IORef a) -> Memory -> a -> IO ()
+writeRegs f mem = writeIORef (f (regs mem)) --val
 
 --File Management
 data OpenFile = OpenFile

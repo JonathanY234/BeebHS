@@ -31,7 +31,7 @@ main = do
     m7Font <- loadMode7Font "roms/basicsdl.fnt" 28
     --let (targetHz :: Int) = 50
     
-    (mem, regs) <- cpuInit
+    mem <- cpuInit
     sdlCtxt <- initVideo
 
     clockStart <- getTime Monotonic
@@ -47,9 +47,9 @@ main = do
                 updateKeyboardMatrix mem
 
                 newDebugState <- if isDebug
-                    then runInstructionsDebug mem regs 10000 debugState
+                    then runInstructionsDebug mem 10000 debugState
                     else do
-                        runInstructions mem regs 10000
+                        runInstructions mem 10000
                         return debugState -- value of debugState is not relevent here as not debugging
 
                 scrollAmount <- getScrollingAmount mem
@@ -67,7 +67,7 @@ main = do
                 threadDelay (fromIntegral timeCorrection `div` 1000)
                 mainLoop newDebugState
 
-    when isDebug $ debuggerStart mem regs
+    when isDebug $ debuggerStart mem
     mainLoop (DebugState [] 0 True 0)
     endVideo sdlCtxt
 

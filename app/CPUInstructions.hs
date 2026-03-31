@@ -3,7 +3,7 @@ module CPUInstructions where
 import Data.Word (Word16, Word8)
 import Data.Int (Int8)
 import Data.Bits ( Bits((.|.), testBit, complement, (.&.), shiftL, shiftR, xor))
-import Data.IORef (IORef, readIORef, modifyIORef', writeIORef)
+import Data.IORef (readIORef, modifyIORef')
 import Control.Monad (when, forM)
 import qualified Data.Vector as IBVector
 
@@ -14,41 +14,41 @@ import GHC.IO.Handle.FD (withBinaryFile)
 import GHC.IO.IOMode (IOMode(WriteMode))
 
 import Utilities (showHexF)
-import MemoryRegisters (readMemory, writeMemory, Memory (cycleCount), CPURegs(pc, x, y, stackP, accumulator, statusReg))
+import MemoryRegisters (readMemory, writeMemory, Memory (cycleCount, regs), CPURegs(pc, x, y, stackP, accumulator, statusReg), readRegs, writeRegs)
 
 -- __________StatusReg Read Helpers__________
-srReadBit :: Word8 -> IORef Word8 -> IO Bool
-srReadBit mask statusReg = do
-    val <- readIORef statusReg
+srReadBit :: Word8 -> Memory -> IO Bool
+srReadBit mask mem = do
+    val <- readIORef (statusReg (regs mem))
     return $ (val .&. mask) /=0
-srReadCarry            :: IORef Word8 -> IO Bool; srReadCarry            = srReadBit 0x01
-srReadZero             :: IORef Word8 -> IO Bool; srReadZero             = srReadBit 0x02
-srReadInterruptDisable :: IORef Word8 -> IO Bool; srReadInterruptDisable = srReadBit 0x04
-srReadDecimalMode      :: IORef Word8 -> IO Bool; srReadDecimalMode      = srReadBit 0x08
-srReadBreak            :: IORef Word8 -> IO Bool; srReadBreak            = srReadBit 0x10
-srReadUnused           ::                IO Bool; srReadUnused           = return True --haha
-srReadOverflow         :: IORef Word8 -> IO Bool; srReadOverflow         = srReadBit 0x40
-srReadNegative         :: IORef Word8 -> IO Bool; srReadNegative         = srReadBit 0x80
+srReadCarry            :: Memory -> IO Bool; srReadCarry            = srReadBit 0x01
+srReadZero             :: Memory -> IO Bool; srReadZero             = srReadBit 0x02
+srReadInterruptDisable :: Memory -> IO Bool; srReadInterruptDisable = srReadBit 0x04
+srReadDecimalMode      :: Memory -> IO Bool; srReadDecimalMode      = srReadBit 0x08
+srReadBreak            :: Memory -> IO Bool; srReadBreak            = srReadBit 0x10
+srReadUnused           ::           IO Bool; srReadUnused           = return True --haha
+srReadOverflow         :: Memory -> IO Bool; srReadOverflow         = srReadBit 0x40
+srReadNegative         :: Memory -> IO Bool; srReadNegative         = srReadBit 0x80
 
 -- __________StatusReg Write Helpers__________
-srWriteBit :: Word8 -> IORef Word8 -> Bool -> IO ()
-srWriteBit mask statusReg val = modifyIORef' statusReg update
-    where
-        update sr = if val then sr .|. mask else sr .&. complement mask
+srWriteBit :: Word8 -> Memory -> Bool -> IO ()
+srWriteBit mask mem val = modifyIORef' (statusReg (regs mem)) update
+  where
+    update sr = if val then sr .|. mask else sr .&. complement mask
 
-srWriteCarry            :: IORef Word8 -> Bool -> IO (); srWriteCarry            = srWriteBit 0x01
-srWriteZero             :: IORef Word8 -> Bool -> IO (); srWriteZero             = srWriteBit 0x02
-srWriteInterruptDisable :: IORef Word8 -> Bool -> IO (); srWriteInterruptDisable = srWriteBit 0x04
-srWriteDecimalMode      :: IORef Word8 -> Bool -> IO (); srWriteDecimalMode      = srWriteBit 0x08
-srWriteBreak            :: IORef Word8 -> Bool -> IO (); srWriteBreak            = srWriteBit 0x10
-srWriteUnused           :: IORef Word8 -> Bool -> IO (); srWriteUnused           = srWriteBit 0x20
-srWriteOverflow         :: IORef Word8 -> Bool -> IO (); srWriteOverflow         = srWriteBit 0x40
-srWriteNegative         :: IORef Word8 -> Bool -> IO (); srWriteNegative         = srWriteBit 0x80
+srWriteCarry            :: Memory -> Bool -> IO (); srWriteCarry            = srWriteBit 0x01
+srWriteZero             :: Memory -> Bool -> IO (); srWriteZero             = srWriteBit 0x02
+srWriteInterruptDisable :: Memory -> Bool -> IO (); srWriteInterruptDisable = srWriteBit 0x04
+srWriteDecimalMode      :: Memory -> Bool -> IO (); srWriteDecimalMode      = srWriteBit 0x08
+srWriteBreak            :: Memory -> Bool -> IO (); srWriteBreak            = srWriteBit 0x10
+srWriteUnused           :: Memory -> Bool -> IO (); srWriteUnused           = srWriteBit 0x20
+srWriteOverflow         :: Memory -> Bool -> IO (); srWriteOverflow         = srWriteBit 0x40
+srWriteNegative         :: Memory -> Bool -> IO (); srWriteNegative         = srWriteBit 0x80
 
-opcodeTable :: IBVector.Vector (Memory -> CPURegs -> IO ())
+opcodeTable :: IBVector.Vector (Memory -> IO ())
 opcodeTable = IBVector.generate 256 assign
     where
-        assign :: Int -> (Memory -> CPURegs -> IO ())
+        assign :: Int -> (Memory -> IO ())
         assign 0x00 = brk undefined 7
         assign 0x01 = indirectX ora 6
         assign 0x05 = zeropage ora 3
@@ -213,10 +213,11 @@ dumpRAM mem = do
     withBinaryFile "ram_dump.bin" WriteMode $ \h -> ByteStr.hPut h bs
     putStrLn "dump done"
 
-instrUnimplemented :: Memory -> CPURegs -> IO ()
-instrUnimplemented mem regs = do
+instrUnimplemented :: Memory -> IO ()
+instrUnimplemented mem = do
     --return ()
-    pcVal <- readIORef (pc regs)
+    --pcVal <- readRegs pc mem
+    pcVal <- readRegs pc mem
     putStrLn $ "unimplementedOpcode at " ++ showHexF pcVal
     opcode <- readMemory mem pcVal
     putStrLn $ "Value: " ++ showHexF opcode
@@ -226,115 +227,116 @@ instrUnimplemented mem regs = do
 
 -- __________Addressing Modes__________
 -- immediate        value is the value right there in the instruction
-immediate :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-immediate instr baseCycles mem regs = do
+immediate :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+immediate instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand <- readMemory mem (pcVal + 1)
 
-    writeIORef (pc regs) (pcVal + 2)
-    instr (fromIntegral operand) mem regs True
+    writeRegs pc mem (pcVal + 2)
+    writeRegs pc mem (pcVal + 2)
+    instr (fromIntegral operand) mem True
 
 -- zeropage         value is in 0th page can be addressed with 8bits
-zeropage :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-zeropage instr baseCycles mem regs = do
+zeropage :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+zeropage instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand <- readMemory mem (pcVal + 1)
 
-    writeIORef (pc regs) (pcVal + 2)
-    instr (fromIntegral operand) mem regs False
+    writeRegs pc mem (pcVal + 2)
+    instr (fromIntegral operand) mem False
 
 -- zeropage,X       value is at (zeropage + value of X reg) (will overflow)
-zeropageX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-zeropageX instr baseCycles mem regs = do
+zeropageX :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+zeropageX instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand <- readMemory mem (pcVal + 1)
 
-    x' <- readIORef (x regs)
+    x' <- readRegs x mem
     let address = operand + x'
 
-    writeIORef (pc regs) (pcVal + 2)
-    instr (fromIntegral address) mem regs False
+    writeRegs pc mem (pcVal + 2)
+    instr (fromIntegral address) mem False
 
 -- zeropage,Y       like zeropage X but with Y (rarely used by instructions)
-zeropageY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-zeropageY instr baseCycles mem regs = do
+zeropageY :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+zeropageY instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand <- readMemory mem (pcVal + 1)
 
-    y' <- readIORef (y regs)
+    y' <- readRegs y mem
     let address = operand + y'
 
-    writeIORef (pc regs) (pcVal + 2)
-    instr (fromIntegral address) mem regs False
+    writeRegs pc mem (pcVal + 2)
+    instr (fromIntegral address) mem False
 
 combineTwoBytes :: Word8 -> Word8 -> Word16
 -- 6502 is little endian for some reason
 combineTwoBytes low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 
 -- absolute         value is at address pointed to by the next 2 bytes (the whole memory)
-absolute :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-absolute instr baseCycles mem regs = do
+absolute :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+absolute instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
     let address = combineTwoBytes operand1 operand2
 
-    writeIORef (pc regs) (pcVal + 3)
-    instr address mem regs False
+    writeRegs pc mem (pcVal + 3)
+    instr address mem False
 
 -- absolute,X       value is at Absolute address plus X
-absoluteX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-absoluteX instr baseCycles mem regs = do
+absoluteX :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+absoluteX instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
 
-    x' <- readIORef (x regs)
+    x' <- readRegs x mem
     let address = combineTwoBytes operand1 operand2 + fromIntegral x'
 
     when (operand1 + x' < operand1) $ modifyIORef' (cycleCount mem) (+ 1) --when page boundry crossed
 
-    writeIORef (pc regs) (pcVal + 3)
-    instr address mem regs False
+    writeRegs pc mem (pcVal + 3)
+    instr address mem False
 
 -- absolute,Y       ''
-absoluteY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-absoluteY instr baseCycles mem regs = do
+absoluteY :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+absoluteY instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
 
-    y' <- readIORef (y regs)
+    y' <- readRegs y mem
     let address = combineTwoBytes operand1 operand2 + fromIntegral y'
 
     when (operand1 + y' < operand1) $ modifyIORef' (cycleCount mem) (+ 1) --when page boundry crossed
 
-    writeIORef (pc regs) (pcVal + 3)
-    instr address mem regs False
+    writeRegs pc mem (pcVal + 3)
+    instr address mem False
 
 -- (indirect,X)     read value at operand (8 bit, only zeropage) + X (overflows), then read 2 bytes and value is memory at those 2 bytes
-indirectX :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-indirectX instr baseCycles mem regs = do
+indirectX :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+indirectX instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand <- readMemory mem (pcVal + 1)
 
-    x' <- readIORef (x regs)
+    x' <- readRegs x mem
     let pointer = operand + x' -- will wrap around automatically
 
     byte1 <- readMemory mem (fromIntegral pointer)
@@ -342,68 +344,68 @@ indirectX instr baseCycles mem regs = do
 
     let address = combineTwoBytes byte1 byte2
 
-    writeIORef (pc regs) (pcVal + 2)
-    instr address mem regs False
+    writeRegs pc mem (pcVal + 2)
+    instr address mem False
 
 -- (indirect),Y     read two bytes at zero-page operand and add Y, Use that as address
-indirectY :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-indirectY instr baseCycles mem regs = do
+indirectY :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+indirectY instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand <- readMemory mem (pcVal + 1)
     byte1 <- readMemory mem (fromIntegral operand)
     byte2 <- readMemory mem (fromIntegral (operand + 1))
 
-    y' <- readIORef (y regs)
+    y' <- readRegs y mem
     let address = combineTwoBytes byte1 byte2 + fromIntegral y'
 
     when (byte1 + y' < byte1) $ modifyIORef' (cycleCount mem) (+1) --when page boundry crossed
 
-    writeIORef (pc regs) (pcVal + 2)
-    instr address mem regs False
+    writeRegs pc mem (pcVal + 2)
+    instr address mem False
 
 -- For INC, DEC, ASL, ROL, LSR, ROR, STA
 -- no page crossing cycle penalty, these are mostly still copies the base addressing mode
 -- this code repetition is pretty horrible
-absoluteXRMW :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-absoluteXRMW instr baseCycles mem regs = do
+absoluteXRMW :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+absoluteXRMW instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
-    x' <- readIORef (x regs)
+    x' <- readRegs x mem
     let address = combineTwoBytes operand1 operand2 + fromIntegral x'
-    writeIORef (pc regs) (pcVal + 3)
-    instr address mem regs False
-indirectYRMW :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-indirectYRMW instr baseCycles mem regs = do
+    writeRegs pc mem (pcVal + 3)
+    instr address mem False
+indirectYRMW :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+indirectYRMW instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand <- readMemory mem (pcVal + 1)
     byte1 <- readMemory mem (fromIntegral operand)
     byte2 <- readMemory mem (fromIntegral (operand + 1))
-    y' <- readIORef (y regs)
+    y' <- readRegs y mem
     let address = combineTwoBytes byte1 byte2 + fromIntegral y'
-    writeIORef (pc regs) (pcVal + 2)
-    instr address mem regs False
-absoluteYRMW :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-absoluteYRMW instr baseCycles mem regs = do
+    writeRegs pc mem (pcVal + 2)
+    instr address mem False
+absoluteYRMW :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+absoluteYRMW instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
-    y' <- readIORef (y regs)
+    y' <- readRegs y mem
     let address = combineTwoBytes operand1 operand2 + fromIntegral y'
-    writeIORef (pc regs) (pcVal + 3)
-    instr address mem regs False
+    writeRegs pc mem (pcVal + 3)
+    instr address mem False
 
 -- (indirect)       only used by JMP
-indirect :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-indirect instr baseCycles mem regs = do
+indirect :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+indirect instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
 
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
@@ -418,57 +420,57 @@ indirect instr baseCycles mem regs = do
     byte2 <- readMemory mem highAddr
     let address = combineTwoBytes byte1 byte2
 
-    writeIORef (pc regs) (pcVal + 3)
-    instr address mem regs False
+    writeRegs pc mem (pcVal + 3)
+    instr address mem False
 
 -- useAcc       use the value in the accumulator instead
-useAcc :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-useAcc instr baseCycles mem regs = do
+useAcc :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+useAcc instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
-    writeIORef (pc regs) (pcVal + 1)
-    instr 0 mem regs True
+    pcVal <- readRegs pc mem
+    writeRegs pc mem (pcVal + 1)
+    instr 0 mem True
 
 -- implied      No operands because memory is not used (actually it seems it is)
-implied :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-implied instr baseCycles mem regs = do
+implied :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+implied instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
-    writeIORef (pc regs) (pcVal + 1)
-    instr 0 mem regs False
+    pcVal <- readRegs pc mem
+    writeRegs pc mem (pcVal + 1)
+    instr 0 mem False
 
 -- relative     Used by branch instructions
-relative :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-relative instr baseCycles mem regs = do
+relative :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+relative instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
+    pcVal <- readRegs pc mem
     operand <- readMemory mem (pcVal + 1)
     let offset = fromIntegral (fromIntegral operand :: Int8) :: Int -- keeps the sign bit (hopefully)
         branchTargetInt = fromIntegral pcVal + 2 + offset
         (branchTarget :: Word16) = fromIntegral branchTargetInt
 
-    writeIORef (pc regs) (pcVal + 2) -- in case we dont branch
+    writeRegs pc mem (pcVal + 2) -- in case we dont branch
 
-    instr branchTarget mem regs False
+    instr branchTarget mem False
 
 -- __________Instructions__________
 
 -- %%% Arithmetic operations %%%
 
 -- Add Memory to Accumulator with Carry
-adc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-adc address mem regs isImmediate = do
+adc :: Word16 -> Memory -> Bool -> IO ()
+adc address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
 
-    acc <- readIORef (accumulator regs)
-    carry <- srReadCarry (statusReg regs)
+    acc <- readRegs accumulator mem
+    carry <- srReadCarry mem
 
-    decimal <- srReadDecimalMode (statusReg regs)
+    decimal <- srReadDecimalMode mem
 
     -- Normal binary addition
     let binaryVal16 = (fromIntegral acc :: Word16) + (fromIntegral inputVal :: Word16) + (fromIntegral (fromEnum carry) :: Word16)
@@ -491,14 +493,14 @@ adc address mem regs isImmediate = do
             (binaryVal16 >= 256, binaryVal)
 
 
-    writeIORef (accumulator regs) result
+    writeRegs accumulator mem result
 
-    srWriteCarry (statusReg regs) newCarry
-    srWriteZero (statusReg regs) (result == 0)
+    srWriteCarry mem newCarry
+    srWriteZero mem (result == 0)
 
     -- these flags are not right
-    srWriteNegative (statusReg regs) (testBit binaryVal 7)
-    srWriteOverflow (statusReg regs) (((acc `xor` binaryVal) .&. (inputVal `xor` binaryVal) .&. 0x80) /=0)
+    srWriteNegative mem (testBit binaryVal 7)
+    srWriteOverflow mem (((acc `xor` binaryVal) .&. (inputVal `xor` binaryVal) .&. 0x80) /=0)
 
 debugNibbleVal :: Word8 -> String
 debugNibbleVal input =
@@ -516,521 +518,521 @@ bcdAddNibble carry nibble1 nibble2 =
     in (newCarry, result)
 
 -- Subtract Memory from Accumulator with Borrow
-sbc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-sbc address mem regs isImmediate = do
+sbc :: Word16 -> Memory -> Bool -> IO ()
+sbc address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
 
     let invertedVal = complement inputVal
-    adc (fromIntegral invertedVal) mem regs True
+    adc (fromIntegral invertedVal) mem True
     -- Invert then use ADC works because 6502 reuses add circuitry for sub just like I am reusing the code for it
 
 -- %%% Transfer operations %%%
 
 -- Load Accumulator with Memory
-lda :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-lda address mem regs isImmediate = do
+lda :: Word16 -> Memory -> Bool -> IO ()
+lda address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
 
-    writeIORef (accumulator regs) inputVal
-    srWriteZero (statusReg regs) (inputVal == 0)
-    srWriteNegative (statusReg regs) (testBit inputVal 7)
+    writeRegs accumulator mem inputVal
+    srWriteZero mem (inputVal == 0)
+    srWriteNegative mem (testBit inputVal 7)
 
 -- Load Index X with Memory
-ldx :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-ldx address mem regs isImmediate = do
+ldx :: Word16 -> Memory -> Bool -> IO ()
+ldx address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
 
-    writeIORef (x regs) inputVal
-    srWriteZero (statusReg regs) (inputVal == 0)
-    srWriteNegative (statusReg regs) (testBit inputVal 7)
+    writeRegs x mem inputVal
+    srWriteZero mem (inputVal == 0)
+    srWriteNegative mem (testBit inputVal 7)
 
 -- Load Index Y with Memory
-ldy :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-ldy address mem regs isImmediate = do
+ldy :: Word16 -> Memory -> Bool -> IO ()
+ldy address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
 
-    writeIORef (y regs) inputVal
-    srWriteZero (statusReg regs) (inputVal == 0)
-    srWriteNegative (statusReg regs) (testBit inputVal 7)
+    writeRegs y mem inputVal
+    srWriteZero mem (inputVal == 0)
+    srWriteNegative mem (testBit inputVal 7)
 
 -- Store Accumulator in Memory
-sta :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-sta address mem regs _ = do
-    acc <- readIORef (accumulator regs)
+sta :: Word16 -> Memory -> Bool -> IO ()
+sta address mem _ = do
+    acc <- readRegs accumulator mem
     writeMemory mem address acc
 
 -- Store Index X in Memory
-stx :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-stx address mem regs _ = do
-    x' <- readIORef (x regs)
+stx :: Word16 -> Memory -> Bool -> IO ()
+stx address mem _ = do
+    x' <- readRegs x mem
     writeMemory mem address x'
 
 -- Store Index Y in Memory
-sty :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-sty address mem regs _ = do
-    y' <- readIORef (y regs)
+sty :: Word16 -> Memory -> Bool -> IO ()
+sty address mem _ = do
+    y' <- readRegs y mem
     writeMemory mem address y'
 
 -- Transfer Accumulator to Index X
-tax :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-tax _ _ regs _ = do
-    acc <- readIORef (accumulator regs)
-    writeIORef (x regs) acc
+tax :: Word16 -> Memory -> Bool -> IO ()
+tax _ mem _ = do
+    acc <- readRegs accumulator mem
+    writeRegs x mem acc
 
-    srWriteZero (statusReg regs) (acc == 0)
-    srWriteNegative (statusReg regs) (testBit acc 7)
+    srWriteZero mem (acc == 0)
+    srWriteNegative mem (testBit acc 7)
 
 -- Transfer Accumulator to Index Y
-tay :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-tay _ _ regs _ = do
-    acc <- readIORef (accumulator regs)
-    writeIORef (y regs) acc
+tay :: Word16 -> Memory -> Bool -> IO ()
+tay _ mem _ = do
+    acc <- readRegs accumulator mem
+    writeRegs y mem acc
 
-    srWriteZero (statusReg regs) (acc == 0)
-    srWriteNegative (statusReg regs) (testBit acc 7)
+    srWriteZero mem (acc == 0)
+    srWriteNegative mem (testBit acc 7)
 
 -- Transfer Stack Pointer to Index X
-tsx :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-tsx _ _ regs _ = do
-    sp <- readIORef (stackP regs)
-    writeIORef (x regs) sp
+tsx :: Word16 -> Memory -> Bool -> IO ()
+tsx _ mem _ = do
+    sp <- readRegs stackP mem
+    writeRegs x mem sp
 
-    srWriteZero (statusReg regs) (sp == 0)
-    srWriteNegative (statusReg regs) (testBit sp 7)
+    srWriteZero mem (sp == 0)
+    srWriteNegative mem (testBit sp 7)
 
 -- Transfer Index X to Accumulator
-txa :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-txa _ _ regs _ = do
-    x' <- readIORef (x regs)
-    writeIORef (accumulator regs) x'
+txa :: Word16 -> Memory -> Bool -> IO ()
+txa _ mem _ = do
+    x' <- readRegs x mem
+    writeRegs accumulator mem x'
 
-    srWriteZero (statusReg regs) (x' == 0)
-    srWriteNegative (statusReg regs) (testBit x' 7)
+    srWriteZero mem (x' == 0)
+    srWriteNegative mem (testBit x' 7)
 
 -- Transfer Index X to Stack Pointer
-txs :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-txs _ _ regs _ = do
-    x' <- readIORef (x regs)
-    writeIORef (stackP regs) x'
+txs :: Word16 -> Memory -> Bool -> IO ()
+txs _ mem _ = do
+    x' <- readRegs x mem
+    writeRegs stackP mem x'
 
 -- Transfer Index Y to Accumulator
-tya :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-tya _ _ regs _ = do
-    y' <- readIORef (y regs)
-    writeIORef (accumulator regs) y'
+tya :: Word16 -> Memory -> Bool -> IO ()
+tya _ mem _ = do
+    y' <- readRegs y mem
+    writeRegs accumulator mem y'
 
-    srWriteZero (statusReg regs) (y' == 0)
-    srWriteNegative (statusReg regs) (testBit y' 7)
+    srWriteZero mem (y' == 0)
+    srWriteNegative mem (testBit y' 7)
 
 -- %%% Decrements & Increments %%%
 
 -- Decrement Memory by One
-dec :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-dec address mem regs _ = do
+dec :: Word16 -> Memory -> Bool -> IO ()
+dec address mem _ = do
     memVal <- readMemory mem address
     let newVal = memVal - 1
     writeMemory mem address newVal
 
-    srWriteZero (statusReg regs) (newVal == 0)
-    srWriteNegative (statusReg regs) (testBit newVal 7)
+    srWriteZero mem (newVal == 0)
+    srWriteNegative mem (testBit newVal 7)
 
 -- Decrement Index X by One
-dex :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-dex _ _ regs _ = do
-    x' <- readIORef (x regs)
+dex :: Word16 -> Memory -> Bool -> IO ()
+dex _ mem _ = do
+    x' <- readRegs x mem
     let newVal = x' - 1
-    writeIORef (x regs) newVal
+    writeRegs x mem newVal
 
-    srWriteZero (statusReg regs) (newVal == 0)
-    srWriteNegative (statusReg regs) (testBit newVal 7)
+    srWriteZero mem (newVal == 0)
+    srWriteNegative mem (testBit newVal 7)
 
 -- Decrement Index Y by One
-dey :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-dey _ _ regs _ = do
-    y' <- readIORef (y regs)
+dey :: Word16 -> Memory -> Bool -> IO ()
+dey _ mem _ = do
+    y' <- readRegs y mem
     let newVal = y' - 1
-    writeIORef (y regs) newVal
+    writeRegs y mem newVal
 
-    srWriteZero (statusReg regs) (newVal == 0)
-    srWriteNegative (statusReg regs) (testBit newVal 7)
+    srWriteZero mem (newVal == 0)
+    srWriteNegative mem (testBit newVal 7)
 
 -- Increment Memory by One
-inc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-inc address mem regs _ = do
+inc :: Word16 -> Memory -> Bool -> IO ()
+inc address mem _ = do
     memVal <- readMemory mem address
     let newVal = memVal + 1
     writeMemory mem address newVal
 
-    srWriteZero (statusReg regs) (newVal == 0)
-    srWriteNegative (statusReg regs) (testBit newVal 7)
+    srWriteZero mem (newVal == 0)
+    srWriteNegative mem (testBit newVal 7)
 
 -- Increment Index X by One
-inx :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-inx _ _ regs _ = do
-    x' <- readIORef (x regs)
+inx :: Word16 -> Memory -> Bool -> IO ()
+inx _ mem _ = do
+    x' <- readRegs x mem
     let newVal = x' + 1
-    writeIORef (x regs) newVal
+    writeRegs x mem newVal
 
-    srWriteZero (statusReg regs) (newVal == 0)
-    srWriteNegative (statusReg regs) (testBit newVal 7)
+    srWriteZero mem (newVal == 0)
+    srWriteNegative mem (testBit newVal 7)
 
 -- Increment Index Y by One
-iny :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-iny _ _ regs _ = do
-    y' <- readIORef (y regs)
+iny :: Word16 -> Memory -> Bool -> IO ()
+iny _ mem _ = do
+    y' <- readRegs y mem
     let newVal = y' + 1
-    writeIORef (y regs) newVal
+    writeRegs y mem newVal
 
-    srWriteZero (statusReg regs) (newVal == 0)
-    srWriteNegative (statusReg regs) (testBit newVal 7)
+    srWriteZero mem (newVal == 0)
+    srWriteNegative mem (testBit newVal 7)
 
 -- %%% Logical Operations %%%
 
 -- AND Memory with Accumulator (bitwise)
-and_ :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-and_ address mem regs isImmediate = do
+and_ :: Word16 -> Memory -> Bool -> IO ()
+and_ address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
-    acc <- readIORef (accumulator regs)
+    acc <- readRegs accumulator mem
     let result = inputVal .&. acc
-    writeIORef (accumulator regs) result
+    writeRegs accumulator mem result
 
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
+    srWriteZero mem (result == 0)
+    srWriteNegative mem (testBit result 7)
 
 -- Exclusive Or (xor) Memory with Accumulator (bitwise)
-eor :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-eor address mem regs isImmediate = do
+eor :: Word16 -> Memory -> Bool -> IO ()
+eor address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
-    acc <- readIORef (accumulator regs)
+    acc <- readRegs accumulator mem
     let result = inputVal `xor` acc
-    writeIORef (accumulator regs) result
+    writeRegs accumulator mem result
 
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
+    srWriteZero mem (result == 0)
+    srWriteNegative mem (testBit result 7)
 
 -- OR Memory with Accumulator (bitwise)
-ora :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-ora address mem regs isImmediate = do
+ora :: Word16 -> Memory -> Bool -> IO ()
+ora address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
-    acc <- readIORef (accumulator regs)
+    acc <- readRegs accumulator mem
     let result = inputVal .|. acc
-    writeIORef (accumulator regs) result
+    writeRegs accumulator mem result
 
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
+    srWriteZero mem (result == 0)
+    srWriteNegative mem (testBit result 7)
 
 -- %%% Shift and Rotate %%%
 
 -- Shift Left One Bit (Memory or Accumulator)
 
-asl :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-asl address mem regs accNotMem = do
+asl :: Word16 -> Memory -> Bool -> IO ()
+asl address mem accNotMem = do
     inputVal <- if accNotMem
-        then readIORef (accumulator regs)
+        then readRegs accumulator mem
         else readMemory mem address
 
     let result = inputVal `shiftL` 1
     if accNotMem
-        then writeIORef (accumulator regs) result
+        then writeRegs accumulator mem result
         else writeMemory mem address result
 
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
-    srWriteCarry (statusReg regs) (testBit inputVal 7)
+    srWriteZero mem (result == 0)
+    srWriteNegative mem (testBit result 7)
+    srWriteCarry mem (testBit inputVal 7)
 
 -- Shift Right One Bit (Memory or Accumulator)
 
-lsr :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-lsr address mem regs accNotMem = do
+lsr :: Word16 -> Memory -> Bool -> IO ()
+lsr address mem accNotMem = do
     inputVal <- if accNotMem
-        then readIORef (accumulator regs)
+        then readRegs accumulator mem
         else readMemory mem address
 
     let result = inputVal `shiftR` 1
     if accNotMem
-        then writeIORef (accumulator regs) result
+        then writeRegs accumulator mem result
         else writeMemory mem address result
 
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) False
-    srWriteCarry (statusReg regs) (testBit inputVal 0)
+    srWriteZero mem (result == 0)
+    srWriteNegative mem False
+    srWriteCarry mem (testBit inputVal 0)
 
 -- Rotate One Bit Left (Memory or Accumulator)
-rol :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-rol address mem regs accNotMem = do
+rol :: Word16 -> Memory -> Bool -> IO ()
+rol address mem accNotMem = do
     inputVal <- if accNotMem
-        then readIORef (accumulator regs)
+        then readRegs accumulator mem
         else readMemory mem address
 
-    oldCarry <- srReadCarry (statusReg regs)
+    oldCarry <- srReadCarry mem
     let carryOut = testBit inputVal 7
         result = (inputVal `shiftL` 1) .|. (if oldCarry then 1 else 0)
     if accNotMem
-        then writeIORef (accumulator regs) result
+        then writeRegs accumulator mem result
         else writeMemory mem address result
 
-    srWriteCarry (statusReg regs) carryOut
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
+    srWriteCarry mem carryOut
+    srWriteZero mem (result == 0)
+    srWriteNegative mem (testBit result 7)
 
 -- Rotate One Bit Right (Memory or Accumulator)
-ror :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-ror address mem regs accNotMem = do
+ror :: Word16 -> Memory -> Bool -> IO ()
+ror address mem accNotMem = do
     inputVal <- if accNotMem
-        then readIORef (accumulator regs)
+        then readRegs accumulator mem
         else readMemory mem address
 
-    oldCarry <- srReadCarry (statusReg regs)
+    oldCarry <- srReadCarry mem
     let carryOut = testBit inputVal 0
         result = (inputVal `shiftR` 1) .|. (if oldCarry then 128 else 0)
     if accNotMem
-        then writeIORef (accumulator regs) result
+        then writeRegs accumulator mem result
         else writeMemory mem address result
 
-    srWriteCarry (statusReg regs) carryOut
-    srWriteZero (statusReg regs) (result == 0)
-    srWriteNegative (statusReg regs) (testBit result 7)
+    srWriteCarry mem carryOut
+    srWriteZero mem (result == 0)
+    srWriteNegative mem (testBit result 7)
 
 -- %%% Flag Instructions %%%
 
 -- clear carry
-clc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-clc _ _ regs _ = do
-    srWriteCarry (statusReg regs) False
+clc :: Word16 -> Memory -> Bool -> IO ()
+clc _ mem _ = do
+    srWriteCarry mem False
 
 -- clear decimal (BCD arithmetics disabled)
-cld :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-cld _ _ regs _ = do
-    srWriteDecimalMode (statusReg regs) False
+cld :: Word16 -> Memory -> Bool -> IO ()
+cld _ mem _ = do
+    srWriteDecimalMode mem False
 
 -- clear interrupt disable
-cli :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-cli _ _ regs _ = do
-    srWriteInterruptDisable (statusReg regs) False
+cli :: Word16 -> Memory -> Bool -> IO ()
+cli _ mem _ = do
+    srWriteInterruptDisable mem False
 
 -- clear overflow
-clv :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-clv _ _ regs _ = do
-    srWriteOverflow (statusReg regs) False
+clv :: Word16 -> Memory -> Bool -> IO ()
+clv _ mem _ = do
+    srWriteOverflow mem False
 
 -- set carry
-sec :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-sec _ _ regs _ = do
-    srWriteCarry (statusReg regs) True
+sec :: Word16 -> Memory -> Bool -> IO ()
+sec _ mem _ = do
+    srWriteCarry mem True
 
 -- set decimal (BCD arithmetics enabled)
-sed :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-sed _ _ regs _ = do
+sed :: Word16 -> Memory -> Bool -> IO ()
+sed _ mem _ = do
     putStrLn "DECIMAL MODE SET!!!!!!!!!"
-    srWriteDecimalMode (statusReg regs) True
+    srWriteDecimalMode mem True
 
 -- set interrupt disable
-sei :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-sei _ _ regs _ = do
-    srWriteInterruptDisable (statusReg regs) True
+sei :: Word16 -> Memory -> Bool -> IO ()
+sei _ mem _ = do
+    srWriteInterruptDisable mem True
 
 -- %%% Comparisons %%%
 
 -- Compare Accumulator with Memory Value
-cmp :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-cmp address mem regs isImmediate = do
+cmp :: Word16 -> Memory -> Bool -> IO ()
+cmp address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
 
-    acc <- readIORef (accumulator regs)
+    acc <- readRegs accumulator mem
 
-    srWriteCarry (statusReg regs) (acc >= inputVal)
-    srWriteZero (statusReg regs) (acc == inputVal)
-    srWriteNegative (statusReg regs) (testBit (acc-inputVal) 7)
+    srWriteCarry mem (acc >= inputVal)
+    srWriteZero mem (acc == inputVal)
+    srWriteNegative mem (testBit (acc-inputVal) 7)
 
 -- Compare Index X with Memory Value
-cpx :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-cpx address mem regs isImmediate = do
+cpx :: Word16 -> Memory -> Bool -> IO ()
+cpx address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
 
-    x' <- readIORef (x regs)
+    x' <- readRegs x mem
 
-    srWriteCarry (statusReg regs) (x' >= inputVal)
-    srWriteZero (statusReg regs) (x' == inputVal)
-    srWriteNegative (statusReg regs) (testBit (x'-inputVal) 7)
+    srWriteCarry mem (x' >= inputVal)
+    srWriteZero mem (x' == inputVal)
+    srWriteNegative mem (testBit (x'-inputVal) 7)
 
 -- Compare Index y with Memory Value
-cpy :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-cpy address mem regs isImmediate = do
+cpy :: Word16 -> Memory -> Bool -> IO ()
+cpy address mem isImmediate = do
     inputVal <- if isImmediate
         then return (fromIntegral address :: Word8)
         else readMemory mem address
 
-    y' <- readIORef (y regs)
+    y' <- readRegs y mem
 
-    srWriteCarry (statusReg regs) (y' >= inputVal)
-    srWriteZero (statusReg regs) (y' == inputVal)
-    srWriteNegative (statusReg regs) (testBit (y'-inputVal) 7)
+    srWriteCarry mem (y' >= inputVal)
+    srWriteZero mem (y' == inputVal)
+    srWriteNegative mem (testBit (y'-inputVal) 7)
 
 -- %%% Bit Test %%%
 
 -- Strange, Cannot be Summarised (but it does an AND operation)
-bit :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bit address mem regs _ = do
+bit :: Word16 -> Memory -> Bool -> IO ()
+bit address mem _ = do
     memVal <- readMemory mem address
-    acc <- readIORef (accumulator regs)
+    acc <- readRegs accumulator mem
 
-    srWriteZero (statusReg regs) (acc .&. memVal == 0)
-    srWriteOverflow (statusReg regs) (testBit memVal 6)
-    srWriteNegative (statusReg regs) (testBit memVal 7)
+    srWriteZero mem (acc .&. memVal == 0)
+    srWriteOverflow mem (testBit memVal 6)
+    srWriteNegative mem (testBit memVal 7)
 
 -- %%% Conditional Branch %%%
 
-branchIf :: Bool -> Word16 -> Memory -> CPURegs -> IO ()
-branchIf condition branchTarget mem regs = do
+branchIf :: Bool -> Word16 -> Memory -> IO ()
+branchIf condition branchTarget mem = do
     when condition $ do
-        oldPc <- readIORef (pc regs)
+        oldPc <- readRegs pc mem
         if (oldPc .&. 0xFF00) == (branchTarget .&. 0xFF00)
             then modifyIORef' (cycleCount mem) (+1)
             else modifyIORef' (cycleCount mem) (+2)
-        writeIORef (pc regs) branchTarget
+        writeRegs pc mem branchTarget
 
 -- Branch if Carry Clear
-bcc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bcc branchTarget mem regs _ = do
-    carry' <- srReadCarry (statusReg regs)
-    branchIf (not carry') branchTarget mem regs
+bcc :: Word16 -> Memory -> Bool -> IO ()
+bcc branchTarget mem _ = do
+    carry' <- srReadCarry mem
+    branchIf (not carry') branchTarget mem
 
 -- Branch if Carry Set
-bcs :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bcs branchTarget mem regs _ = do
-    carry' <- srReadCarry (statusReg regs)
-    branchIf carry' branchTarget mem regs
+bcs :: Word16 -> Memory -> Bool -> IO ()
+bcs branchTarget mem _ = do
+    carry' <- srReadCarry mem
+    branchIf carry' branchTarget mem
 
 -- Branch if Equal (Zero Set)
-beq :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-beq branchTarget mem regs _ = do
-    zero' <- srReadZero (statusReg regs)
-    branchIf zero' branchTarget mem regs
+beq :: Word16 -> Memory -> Bool -> IO ()
+beq branchTarget mem _ = do
+    zero' <- srReadZero mem
+    branchIf zero' branchTarget mem
 
 -- Branch if Not Equal (Zero clear)
-bne :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bne branchTarget mem regs _ = do
-    zero' <- srReadZero (statusReg regs)
-    branchIf (not zero') branchTarget mem regs
+bne :: Word16 -> Memory -> Bool -> IO ()
+bne branchTarget mem _ = do
+    zero' <- srReadZero mem
+    branchIf (not zero') branchTarget mem
 
 -- Branch if Minus (Negative Set)
-bmi :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bmi branchTarget mem regs _ = do
-    negative' <- srReadNegative (statusReg regs)
-    branchIf negative' branchTarget mem regs
+bmi :: Word16 -> Memory -> Bool -> IO ()
+bmi branchTarget mem _ = do
+    negative' <- srReadNegative mem
+    branchIf negative' branchTarget mem
 
 -- Branch if Positive (Negative clear)
-bpl :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bpl branchTarget mem regs _ = do
-    negative' <- srReadNegative (statusReg regs)
-    branchIf (not negative') branchTarget mem regs
+bpl :: Word16 -> Memory -> Bool -> IO ()
+bpl branchTarget mem _ = do
+    negative' <- srReadNegative mem
+    branchIf (not negative') branchTarget mem
 
 --- Branch if Overflow Clear
-bvc :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bvc branchTarget mem regs _ = do
-    overflow' <- srReadOverflow (statusReg regs)
-    branchIf (not overflow') branchTarget mem regs
+bvc :: Word16 -> Memory -> Bool -> IO ()
+bvc branchTarget mem _ = do
+    overflow' <- srReadOverflow mem
+    branchIf (not overflow') branchTarget mem
 
 -- Branch if Overflow Set
-bvs :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-bvs branchTarget mem regs _ = do
-    overflow' <- srReadOverflow (statusReg regs)
-    branchIf overflow' branchTarget mem regs
+bvs :: Word16 -> Memory -> Bool -> IO ()
+bvs branchTarget mem _ = do
+    overflow' <- srReadOverflow mem
+    branchIf overflow' branchTarget mem
 
 -- %%% No Operation %%%
 
 -- Do nothing
-nop :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-nop _ _ _ _ = return ()
+nop :: Word16 -> Memory -> Bool -> IO ()
+nop _ _ _ = return ()
 
 -- %%% Stack Instructions %%%
 
 stackBase :: Word16
 stackBase = 0x0100
 
-pushStack :: Memory -> CPURegs -> Word8 -> IO ()
-pushStack mem regs value = do
-    stackPointer <- readIORef (stackP regs)
+pushStack :: Memory -> Word8 -> IO ()
+pushStack mem value = do
+    stackPointer <- readRegs stackP mem
 
     let stackTop = stackBase + fromIntegral stackPointer
     writeMemory mem stackTop value -- here the decrement is done after writing to the stack
 
-    writeIORef (stackP regs) (stackPointer - 1)
+    writeRegs stackP mem (stackPointer - 1)
 
-pullStack :: Memory -> CPURegs -> IO Word8
-pullStack mem regs = do
-    stackPointer <- readIORef (stackP regs)
+pullStack :: Memory -> IO Word8
+pullStack mem = do
+    stackPointer <- readRegs stackP mem
 
     let stackTop = stackBase + fromIntegral (stackPointer + 1) -- here the increment is done 'before' reading the stack
 
-    writeIORef (stackP regs) (stackPointer + 1)
+    writeRegs stackP mem (stackPointer + 1)
 
     readMemory mem stackTop
 
 
 -- Push Accumulator
-pha :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-pha _ mem regs _ = do
-    acc <- readIORef (accumulator regs)
+pha :: Word16 -> Memory -> Bool -> IO ()
+pha _ mem _ = do
+    acc <- readRegs accumulator mem
 
-    pushStack mem regs acc
+    pushStack mem acc
 
 -- Push Processor Status
-php :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-php _ mem regs _ = do
+php :: Word16 -> Memory -> Bool -> IO ()
+php _ mem _ = do
 
-    sr <- readIORef (statusReg regs)
+    sr <- readRegs statusReg mem
 
     let correctedSrVal = sr .|. 0x30 -- Unused is always 1 and break is set high in this instruction
 
-    pushStack mem regs correctedSrVal
+    pushStack mem correctedSrVal
 
 -- Pull Accumulator
-pla :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-pla _ mem regs _ = do
+pla :: Word16 -> Memory -> Bool -> IO ()
+pla _ mem _ = do
 
-    stackVal <- pullStack mem regs
+    stackVal <- pullStack mem
 
-    writeIORef (accumulator regs) stackVal
+    writeRegs accumulator mem stackVal
 
-    srWriteNegative (statusReg regs) (testBit stackVal 7)
-    srWriteZero (statusReg regs) (stackVal == 0)
+    srWriteNegative mem (testBit stackVal 7)
+    srWriteZero mem (stackVal == 0)
 
 -- Pull Processor Status
-plp :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-plp _ mem regs _ = do
+plp :: Word16 -> Memory -> Bool -> IO ()
+plp _ mem _ = do
 
-    srValFromStack <- pullStack mem regs
+    srValFromStack <- pullStack mem
 
     -- Ensure bit 5 (Unused) = 1, bit 4 (Break) = 0
     let correctedSrVal = (srValFromStack .|. 0x20) .&. 0xEF
 
-    writeIORef (statusReg regs) correctedSrVal
+    writeRegs statusReg mem correctedSrVal
 
 -- %%% Jumps & Subroutines %%%
 
 --Jump to Location
-jmp :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-jmp address _ regs _ = do
-    writeIORef (pc regs) address
+jmp :: Word16 -> Memory -> Bool -> IO ()
+jmp address mem _ = do
+    writeRegs pc mem address
 
 jsrRecalcutateAddress :: Word16 -> Memory -> IO Word16
 jsrRecalcutateAddress operandFirstAddress mem = do
@@ -1042,9 +1044,9 @@ jsrRecalcutateAddress operandFirstAddress mem = do
 
 
 -- Jump to Subroutine
-jsr :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-jsr address mem regs _ = do
-    pCounter <- readIORef (pc regs)
+jsr :: Word16 -> Memory -> Bool -> IO ()
+jsr address mem _ = do
+    pCounter <- readRegs pc mem
     let instStartPCounter = pCounter - 3 -- absolute addressing function previously incremented PC which is unhelpful here
 
         returnAddress = instStartPCounter + 2 -- "the return address on the stack points 1 byte before the start of the next instruction"
@@ -1052,23 +1054,23 @@ jsr address mem regs _ = do
         highByte = fromIntegral (returnAddress `shiftR` 8) :: Word8
 
 
-    pushStack mem regs highByte
+    pushStack mem highByte
 
-    pushStack mem regs lowByte -- is this the correct order I'm not sure
+    pushStack mem lowByte -- is this the correct order I'm not sure
 
     --address2 <- jsrRecalcutateAddress (instStartPCounter+1) mem -- I hate this 
 
-    writeIORef (pc regs) address
+    writeRegs pc mem address
 
 -- Return from Subroutine
-rts :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-rts _ mem regs _ = do
-    lowByte <- pullStack mem regs
-    highByte <- pullStack mem regs
+rts :: Word16 -> Memory -> Bool -> IO ()
+rts _ mem _ = do
+    lowByte <- pullStack mem
+    highByte <- pullStack mem
 
     let returnAddress = combineTwoBytes lowByte highByte + 1
 
-    writeIORef (pc regs) returnAddress
+    writeRegs pc mem returnAddress
 
 -- %%% Interrupts %%%
 
@@ -1076,23 +1078,23 @@ irqVector :: Word16
 irqVector = 0xFFFE
 
 -- IRQ interrupt
-irqShared :: Memory -> CPURegs -> IO ()
-irqShared mem regs = do
-    pCounter <- readIORef (pc regs)
+irqShared :: Memory -> IO ()
+irqShared mem = do
+    pCounter <- readRegs pc mem
 
     let returnAddress = pCounter
 
         highByte = fromIntegral (returnAddress `shiftR` 8)  :: Word8
         lowByte  = fromIntegral returnAddress               :: Word8
 
-    sr <- readIORef (statusReg regs)
+    sr <- readRegs statusReg mem
     let correctedSrVal = sr .|. 0x20 -- ensure unused is set
 
-    pushStack mem regs highByte
-    pushStack mem regs lowByte
-    pushStack mem regs correctedSrVal
+    pushStack mem highByte
+    pushStack mem lowByte
+    pushStack mem correctedSrVal
 
-    srWriteInterruptDisable (statusReg regs) True
+    srWriteInterruptDisable mem True
 
     lowByte2 <- readMemory mem irqVector
     highByte2 <- readMemory mem (irqVector + 1) --What if it overflows????????????update lowbyte???
@@ -1100,41 +1102,41 @@ irqShared mem regs = do
     let jumpAddress :: Word16
         jumpAddress = (fromIntegral highByte2 :: Word16) `shiftL` 8 + (fromIntegral lowByte2 :: Word16)
 
-    writeIORef (pc regs) jumpAddress
+    writeRegs pc mem jumpAddress
 
-irq :: Memory -> CPURegs -> IO ()
-irq mem regs = do
-    srWriteBreak (statusReg regs) False
-    irqShared mem regs
+irq :: Memory -> IO ()
+irq mem = do
+    srWriteBreak mem False
+    irqShared mem
 
 -- break: Software IRQ
-brk :: (Word16 -> Memory -> CPURegs -> Bool -> IO ()) -> Word8 -> Memory -> CPURegs -> IO ()
-brk _ baseCycles mem regs = do
+brk :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
+brk _ baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
 
-    pcVal <- readIORef (pc regs)
-    writeIORef (pc regs) (pcVal + 2)
-    srWriteBreak (statusReg regs) True
-    irqShared mem regs
+    pcVal <- readRegs pc mem
+    writeRegs pc mem (pcVal + 2)
+    srWriteBreak mem True
+    irqShared mem
 
 -- Return From Interrupt
-rti :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-rti _ mem regs _ = do
-    srPushed <- pullStack mem regs
-    lowByte <- pullStack mem regs
-    highByte <- pullStack mem regs
+rti :: Word16 -> Memory -> Bool -> IO ()
+rti _ mem _ = do
+    srPushed <- pullStack mem
+    lowByte <- pullStack mem
+    highByte <- pullStack mem
     let returnAddress = (fromIntegral highByte `shiftL` 8) + fromIntegral lowByte
 
     -- keep break and unused at their current value
-    srCurrent <- readIORef (statusReg regs)
+    srCurrent <- readRegs statusReg mem
     let mask = complement 0x30
         correctedSrVal = (srCurrent .&. 0x30) .|. (srPushed .&. mask)
 
-    writeIORef (statusReg regs) correctedSrVal
-    writeIORef (pc regs) returnAddress
+    writeRegs statusReg mem correctedSrVal
+    writeRegs pc mem returnAddress
 
 -- %%% Illegal Instructions %%%
 
 -- another nop
-ill_0C :: Word16 -> Memory -> CPURegs -> Bool -> IO ()
-ill_0C _ _ _ _ = return ()
+ill_0C :: Word16 -> Memory -> Bool -> IO ()
+ill_0C _ _ _ = return ()
