@@ -9,7 +9,7 @@ import FunctionIntercepts (checkForIntercept)
 
 import Data.Word (Word16)
 import Data.IORef (readIORef, writeIORef)
-import Control.Monad (when, unless)
+import Control.Monad (when, unless, replicateM_)
 import qualified Data.Vector as IBVector
 
 cpuInit :: IO Memory
@@ -17,8 +17,7 @@ cpuInit = do
     regs <- initRegisters 0 0 0 0 0xFF 0x20
     mem <- initMemory 0xFF regs
 
-    -- This is the 'machine operating system' in the upper quarter of address space
-    --loadRom "roms/os12_bemdump.rom" 0xC000 mem
+    -- Load the 'machine operating system' in the upper quarter of address space
     loadRom "roms/os12.rom" 0xC000 mem
     -- Load the correct basic rom to the sideways rom area
     loadRom "roms/basic2.rom" 0x8000 mem
@@ -48,25 +47,41 @@ doIRQfromSysvia mem = do
         irq mem
         writeIORef (irqPendingFlag svia) False
 
-runInstructions :: Memory -> Int -> IO ()
-runInstructions mem count = loop 0 --replicateM might be cleaner here
-    where
-        loop n
-            | n >= count = return ()
-            | otherwise = do
-                pcVal <- readRegs pc mem
+-- runInstructions :: Memory -> Int -> IO ()
+-- runInstructions mem count = loop 0 --replicateM might be cleaner here
+--     where
+--         loop n
+--             | n >= count = return ()
+--             | otherwise = do
+--                 pcVal <- readRegs pc mem
 
-                wasIntercepted <- checkForIntercept mem
+--                 wasIntercepted <- checkForIntercept mem
                 
-                unless wasIntercepted $ do
-                    currentInstructionOpcode <- readMemory mem pcVal
-                    let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
-                    instr mem
+--                 unless wasIntercepted $ do
+--                     currentInstructionOpcode <- readMemory mem pcVal
+--                     let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
+--                     instr mem
 
-                    sysviaPoll (sysvia mem) 2
-                    doInterruptCheck (sysvia mem)
-                    doIRQfromSysvia mem
-                    loop (n+1)
+--                     sysviaPoll (sysvia mem) 2
+--                     doInterruptCheck (sysvia mem)
+--                     doIRQfromSysvia mem
+--                     loop (n+1)
+
+runInstructions :: Memory -> Int -> IO ()
+runInstructions mem count =
+    replicateM_ count $ do
+        pcVal <- readRegs pc mem
+
+        wasIntercepted <- checkForIntercept mem
+
+        unless wasIntercepted $ do
+            currentInstructionOpcode <- readMemory mem pcVal
+            let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
+            instr mem
+
+            sysviaPoll (sysvia mem) 2
+            doInterruptCheck (sysvia mem)
+            doIRQfromSysvia mem
 
 debuggerStart :: Memory -> IO ()
 debuggerStart mem = do
@@ -93,8 +108,6 @@ runInstructionsDebug mem count = loop 0 --dbs
                     else return debugState
 
                 let simKP = simulatedKeyPress newDebugState
-
-                --print simKP
 
                 when (simKP == 2) $ manageSimulatedKeyPress mem
                 when (simKP == 1) $ do
@@ -123,7 +136,7 @@ runInstructionsDebug mem count = loop 0 --dbs
                                             then stepsRem
                                             else stepsRem -1
 
-                --handle simuated keypress (I hate this)
+                --handle simuated keypress
                     newSimKP = if simKP == 0
                         then 0
                         else 2

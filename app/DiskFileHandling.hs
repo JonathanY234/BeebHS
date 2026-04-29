@@ -14,7 +14,7 @@ import qualified Data.Vector as IBVector
 import System.IO.Unsafe (unsafePerformIO)
 
 diskFileName :: String
-diskFileName = "games/Disc182-SlotMachine.ssd"
+diskFileName = "games/Disc091-HampsteadSTT.ssd" -- final solution should allow runtime selecting of .ssd file
 
 -- Handle Read and parse .ssd file from disk
 initFileData :: IO (ByteStr.ByteString, IBVector.Vector FileEntry)
@@ -33,7 +33,7 @@ fileEntryVector :: IBVector.Vector FileEntry
 (diskBytes, fileEntryVector) = unsafePerformIO initFileData
 -- Use of unsafePerformIO ensures the file is read and parsed only once
 -- This is safe because the file is read-only. Any external modifications
--- during runtime are ignored, which a desirable property
+-- during runtime are ignored, which a good thing
 
 data FileEntry = FileEntry
     { dir             :: Char
@@ -59,7 +59,6 @@ parseFiles blob =
 
         entries = zipWith3 buildFileEntry sector1Chunks sector2Chunks [1..]
     in entries
-    --in filter (\e -> not (null (name e) || all (== '\0') (name e))) entries
 
     where
         buildFileEntry :: ByteStr.ByteString -> ByteStr.ByteString -> Int -> FileEntry
@@ -169,8 +168,3 @@ incrementOpenFilePointer :: Memory -> OpenFile -> IO ()
 incrementOpenFilePointer mem openFile = do
     let newOpenFile = openFile { readWritePosition = readWritePosition openFile + 1 }
     writeSlot (handle openFile) (Just newOpenFile) (fileTable mem)
-
--- setOpenFileMode :: Memory -> OpenFile -> FileMode -> IO ()
--- setOpenFileMode mem openFile fileMode = do
---     let newOpenFile = openFile { mode = fileMode }
---     writeSlot (handle openFile) newOpenFile (fileTable mem)

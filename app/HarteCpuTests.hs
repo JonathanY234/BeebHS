@@ -80,7 +80,6 @@ instance FromJSON CpuState where
             other               -> other
         }
 
--- The top-level structure
 data ATest = ATest
     { name   :: String
     , initial :: CpuState

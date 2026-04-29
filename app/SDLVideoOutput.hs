@@ -176,13 +176,7 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
             duplicateValues = concatMap (replicate 2)
 
             drawPixel :: Int -> Int -> V4 Word8 -> IO ()
-            --drawPixel x y (V4 red green blue alpha) = do
             drawPixel x y colour = do
-                -- let offset = (y * fromIntegral pitch + x * 4) :: Int -- ABGR8888 = 4 bytes per pixel
-                -- pokeByteOff pixelsPtr offset alpha
-                -- pokeByteOff pixelsPtr (offset + 1) blue
-                -- pokeByteOff pixelsPtr (offset + 2) green
-                -- pokeByteOff pixelsPtr (offset + 3) red
 
                 let pixelPtr = pixelsPtr `plusPtr` (y * fromIntegral pitch)  -- start of row
                 pokeElemOff (castPtr pixelPtr) x colour
@@ -200,16 +194,23 @@ renderMode7Frame SDLContext {texture = texture_, renderer = renderer_} fontVecto
 renderBitMapModeFrame :: SDLContext -> Memory -> IO ()
 renderBitMapModeFrame SDLContext {texture = texture_, renderer = renderer_} mem = do
     let m4VideoMemStart = 0x5800
-    -- 7FFF – 5800 = 27FF
+        m4VideoMemEnd = 0x7FFF
+        m4PixelsPerByte = 8
+        m4Width = 320
+        m4Hight = 256
+        m4BytesPerScanline = m4Width `div` m4PixelsPerByte
+
 
     let m4Palette0 = V4 0 0 0 255       -- black
         m4Palette1 = V4 255 255 255 255 -- white
     _ <-
         SDL.lockTexture texture_ Nothing >>= \(pixelsPtr, pitch) -> do
+            -- in a loop read a byte and then call drawMode4Byte for it with the correct Ptr
+            
+            --forM_ 
 
             let drawMode4Byte :: Word8 -> Ptr (V4 Word8) -> IO ()
                 drawMode4Byte byte ptr = do 
-                    -- Loop over the 8 bits (MSB → LSB)
                     forM_ [0..7] (\i -> do
                         let bit = (byte `shiftR` (7 - i)) .&. 1
                             colour = if bit == 1 then m4Palette1 else m4Palette0

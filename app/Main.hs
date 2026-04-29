@@ -26,8 +26,6 @@ main = do
             exitSuccess
     let isDebug = "-debug" `elem` args
 
-    -- initialisation
-    --m7Font <- loadMode7Font "roms/original.fnt" 24
     m7Font <- loadMode7Font "roms/basicsdl.fnt" 28
     --let (targetHz :: Int) = 50
     

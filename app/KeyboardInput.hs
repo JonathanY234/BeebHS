@@ -110,7 +110,6 @@ updateKeyboardMatrix mem = do
         newMatrix = foldl updateKey (IBVector.replicate (kbdMatrixRows * kbdMatrixCols) False) keyMapping
 
     writeIORef (keyboardMatrix (sysvia mem)) newMatrix
-    --printKeyboardMatrix mem
 
 printKeyboardMatrix :: Memory -> IO ()
 printKeyboardMatrix mem = do

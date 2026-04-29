@@ -10,7 +10,6 @@ import Data.Bits ((.|.), (.&.), shiftL, shiftR, Bits (clearBit, complement, setB
 import Control.Monad (when, unless)
 import Data.Foldable (forM_)
 
--- should this really go here?
 kbdMatrixRows, kbdMatrixCols :: Int
 kbdMatrixRows = 8
 kbdMatrixCols = 10
@@ -55,7 +54,6 @@ updateIFRTopBit svia = do
         modifyViaF svia ifr (.&. complement ifr_irq)
         modifyIORef' (intStatus svia) (`clearBit` 0)
 
--- temp
 printKeyboardMatrix :: Sysvia -> IO ()
 printKeyboardMatrix svia = do
     kb <- readIORef (keyboardMatrix svia)
@@ -142,7 +140,6 @@ slowDataBusRead svia = do
     let result = oraVal .&. ddraVal
 
     ic32StateVal <- readIORef (ic32State svia)
-    --speech?
 
     kbdOPVal <- kbdOP svia
     if ((ic32StateVal .&. ic32_keyboard_write) == 0) && kbdOPVal

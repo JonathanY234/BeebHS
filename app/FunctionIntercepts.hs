@@ -47,7 +47,6 @@ osFile mem = do
             osFileLoadFileHelper mem filename loadIndicator loadAddr
 
             -- A, P are destroyed; X,Y unchanged
-            --writeIORef (accumulator regs) 0x00  -- or leave undefined
             rtsC mem
 
 
@@ -176,7 +175,6 @@ passToCurrentFilingSystem mem = do
                     -- potencially in future add 0xFFFFFFFF check
                     loadFile mem fileEntry bytes
                     writeRegs pc mem (getExecAddr fileEntry)
-                    --return ()
                 Nothing        -> putStrLn $ "fileName not found ahhhhhhh: " ++ command
         3 -> putStrLn "3, unrecognised, not implemented yet" >> rtsC mem
         4 -> do
@@ -232,6 +230,6 @@ stripQuotes s = case s of
     _          -> s
 
 -- Return from Subroutine copy, because after a intercepted function its best to just rtsC to get back to 6502 code
--- Using imported rts function but adapted to remove uneeded parameters
+-- Using imported rts function but adapted to remove unneeded parameters
 rtsC :: Memory -> IO ()
 rtsC mem  = rts undefined mem undefined

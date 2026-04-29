@@ -7,8 +7,6 @@ import Data.IORef (readIORef, modifyIORef')
 import Control.Monad (when, forM)
 import qualified Data.Vector as IBVector
 
--- temp
---import System.Exit (exitSuccess)
 import qualified Data.ByteString as ByteStr
 import GHC.IO.Handle.FD (withBinaryFile)
 import GHC.IO.IOMode (IOMode(WriteMode))
@@ -216,14 +214,10 @@ dumpRAM mem = do
 instrUnimplemented :: Memory -> IO ()
 instrUnimplemented mem = do
     --return ()
-    --pcVal <- readRegs pc mem
     pcVal <- readRegs pc mem
     putStrLn $ "unimplementedOpcode at " ++ showHexF pcVal
     opcode <- readMemory mem pcVal
     putStrLn $ "Value: " ++ showHexF opcode
-
-    -- dumpRAM mem
-    -- exitSuccess
 
 -- __________Addressing Modes__________
 -- immediate        value is the value right there in the instruction
@@ -278,7 +272,7 @@ zeropageY instr baseCycles mem = do
     instr (fromIntegral address) mem False
 
 combineTwoBytes :: Word8 -> Word8 -> Word16
--- 6502 is little endian for some reason
+-- 6502 is little endian
 combineTwoBytes low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 
 -- absolute         value is at address pointed to by the next 2 bytes (the whole memory)
@@ -367,7 +361,7 @@ indirectY instr baseCycles mem = do
 
 -- For INC, DEC, ASL, ROL, LSR, ROR, STA
 -- no page crossing cycle penalty, these are mostly still copies the base addressing mode
--- this code repetition is pretty horrible
+-- this code repetition is not ideal
 absoluteXRMW :: (Word16 -> Memory -> Bool -> IO ()) -> Word8 -> Memory -> IO ()
 absoluteXRMW instr baseCycles mem = do
     modifyIORef' (cycleCount mem) (+ fromIntegral baseCycles)
@@ -410,7 +404,7 @@ indirect instr baseCycles mem = do
     operand1 <- readMemory mem (pcVal + 1)
     operand2 <- readMemory mem (pcVal + 2)
 
-    -- this part simulates the indirect JMP page boundary bug
+    -- Replicate the indirect JMP page boundary bug
     let lowAddr  = combineTwoBytes operand1 operand2
     let highAddr = if (lowAddr .&. 0x00FF) == 0x00FF
                 then lowAddr .&. 0xFF00   -- wrap within the same page
@@ -1055,10 +1049,7 @@ jsr address mem _ = do
 
 
     pushStack mem highByte
-
-    pushStack mem lowByte -- is this the correct order I'm not sure
-
-    --address2 <- jsrRecalcutateAddress (instStartPCounter+1) mem -- I hate this 
+    pushStack mem lowByte
 
     writeRegs pc mem address
 

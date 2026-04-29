@@ -150,9 +150,6 @@ handleInput mem debugState@(DebugState bps _ _ _) = do
             handleInput mem debugState
         "PQ" -> do
             handleInput mem debugState { simulatedKeyPress = 1 }
-            -- if simKP == 0
-            --     then handleInput mem debugState { simulatedKeyPress = 1 } -- fix
-            --     else handleInput mem debugState { simulatedKeyPress = 2 }
         "J" -> do
             writeRegs pc mem (fromIntegral value)
             handleInput mem debugState
@@ -275,11 +272,7 @@ debuggerLineOutput pcVal opcode operand1 operand2 = do
                             1 ->  showHexF operand1 ++ "     "
                             2 ->  showHexF operand1 ++ " " ++ showHexF operand2 ++ "  "
                             _ ->  "error. "
-        -- case addressingMode of
-        --     "Immediate" -> putStr $ showHexF operand1 ++ "       " ++ instructionName ++ " #" ++ showHexF operand1 ++ "     >"
-        --     "Absolute"  -> putStr $ showHexF operand1 ++ " " ++ showHexF operand2 ++ "    " ++ instructionName ++ "   " ++ showHexF operand2 ++ showHexF operand1 ++ "   >"
-        --     "Absolutex" -> putStr "idk"
-        --     _           -> putStr "nothing"
+
         itemSpacing = 15
         padding = replicate (itemSpacing - length instructionName) ' '
         str_instrName = instructionName ++ padding
