@@ -62,6 +62,8 @@ main = do
                     timeCorrection = if idealElapsedNs > elapsedNs
                                         then idealElapsedNs - elapsedNs
                                         else 0
+
+                print timeCorrection
                 threadDelay (fromIntegral timeCorrection `div` 1000)
                 mainLoop newDebugState
 

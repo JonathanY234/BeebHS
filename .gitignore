@@ -2,3 +2,6 @@ dist-newstyle/
 harteCpuTests/
 games/
 BeebHS.prof
+BeebHS_hstd
+BeebHS_mq
+BeebHS_sm
