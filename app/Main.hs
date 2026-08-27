@@ -40,8 +40,6 @@ main = do
             
             unless quit $ do
 
-                --when qPressed $ loadSsdAllFiles mem
-
                 updateKeyboardMatrix mem
 
                 newDebugState <- if isDebug
@@ -63,7 +61,6 @@ main = do
                                         then idealElapsedNs - elapsedNs
                                         else 0
 
-                print timeCorrection
                 threadDelay (fromIntegral timeCorrection `div` 1000)
                 mainLoop newDebugState
 

@@ -10,9 +10,15 @@ The emulator is capable of booting the BBC Micro OS and running BBC BASIC, as we
 SnapperV2.ssd, SpaceInvadersArcadeAction.ssd, HampsteadSST.ssd, SlotMachine.ssd, MapQuizMode7.ssd
 
 ## Requirements
+#### To Run
+- SDL2
+
+#### To Compile
 - GHC
 - Cabal
-- SDL2 libraries
+- SDL2 development libraries (e.g. `sdl2-devel` on Fedora)
+- GCC
+- GMP development libraries (`gmp-devel`)
 
 The BBC Micro OS ROM and BASIC ROM are required but not included due to licensing restrictions.
 Place ROMs in:

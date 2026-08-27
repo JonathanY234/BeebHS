@@ -47,26 +47,6 @@ doIRQfromSysvia mem = do
         irq mem
         writeIORef (irqPendingFlag svia) False
 
--- runInstructions :: Memory -> Int -> IO ()
--- runInstructions mem count = loop 0 --replicateM might be cleaner here
---     where
---         loop n
---             | n >= count = return ()
---             | otherwise = do
---                 pcVal <- readRegs pc mem
-
---                 wasIntercepted <- checkForIntercept mem
-                
---                 unless wasIntercepted $ do
---                     currentInstructionOpcode <- readMemory mem pcVal
---                     let instr = opcodeTable IBVector.! fromIntegral currentInstructionOpcode
---                     instr mem
-
---                     sysviaPoll (sysvia mem) 2
---                     doInterruptCheck (sysvia mem)
---                     doIRQfromSysvia mem
---                     loop (n+1)
-
 runInstructions :: Memory -> Int -> IO ()
 runInstructions mem count =
     replicateM_ count $ do
